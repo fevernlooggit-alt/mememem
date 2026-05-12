@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CS Intel Workflow — Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+    header { margin-bottom: 24px; }
+    h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { color: #475569; font-size: 14px; }
+    .preview-banner {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      color: #78350f;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      margin-bottom: 24px;
+    }
+    label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+    select, textarea, input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background: white;
+      font-family: inherit;
+    }
+    textarea {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 12px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+    .row label { margin: 0; }
+    .pill {
+      display: inline-block;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: #475569;
+    }
+    .button-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    button {
+      border: none;
+      cursor: pointer;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+    }
+    .btn-primary { background: #0f172a; color: white; }
+    .btn-primary:hover { background: #1e293b; }
+    .btn-secondary {
+      background: white;
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+    }
+    .btn-secondary:hover { background: #f8fafc; }
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .output-header h2 { font-size: 14px; font-weight: 500; }
+    .token-info { font-size: 12px; color: #64748b; font-family: ui-monospace, monospace; }
+    .module-desc {
+      font-size: 12px;
+      color: #475569;
+      margin-top: 6px;
+    }
+    .module-hint {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+    /* Markdown rendering */
+    .output {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .output h1 {
+      font-size: 18px;
+      margin: 8px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .output h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 20px 0 8px;
+      color: #1e293b;
+    }
+    .output strong { color: #0f172a; font-weight: 600; }
+    .output blockquote {
+      border-left: 3px solid #cbd5e1;
+      padding: 8px 14px;
+      margin: 8px 0;
+      color: #475569;
+      background: #f8fafc;
+      font-style: italic;
+      white-space: pre-wrap;
+      font-size: 13px;
+    }
+    .output ul, .output ol { margin: 8px 0 8px 24px; }
+    .output li { margin: 4px 0; }
+    .output code {
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+    }
+    .output table {
+      border-collapse: collapse;
+      margin: 8px 0;
+      font-size: 13px;
+      width: 100%;
+    }
+    .output th, .output td {
+      border: 1px solid #e2e8f0;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .output th { background: #f8fafc; font-weight: 600; }
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 24px;
+    }
+    .streaming-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: #0f172a;
+      animation: blink 1s infinite;
+      vertical-align: middle;
+      margin-left: 2px;
+    }
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CS Intel Workflow</h1>
+      <p class="subtitle">客服情报聚合工作流 — 上传游戏组发布物、新需求、数值改动等，得到结构化分析报告。</p>
+    </header>
+
+    <div class="preview-banner">
+      ⚠ 这是静态预览（不调 API）。真实部署后所有按钮都会工作并流式拿到 Claude 的输出。
+    </div>
+
+    <div class="card">
+      <label for="module">选择模块</label>
+      <select id="module">
+        <option>新需求录入 (intake)</option>
+        <option>游戏组发布物分析 (gameteam)</option>
+        <option>AI Bot 规则更新建议 (botrules)</option>
+        <option>Google / iOS 账号审计 (accounts)</option>
+        <option>数值测试报告 (numbers)</option>
+        <option>每日汇总 (wrap)</option>
+      </select>
+      <p class="module-desc">把来自 ops/testing/backend 的原始需求整理成结构化卡片</p>
+      <p class="module-hint">提示：粘贴需求原文。注明 source: ops / testing / backend。</p>
+
+      <label style="margin-top: 16px;">输入内容（粘贴文本，或上传 .md / .txt / .csv 文件追加）</label>
+      <textarea rows="9">来源: testing
+收到时间: 2026-05-12 14:23
+
+测试组反馈：iOS 1.4.2 版本玩家登录后闪退，目前已收到 50+ 工单。
+重现率约 30%，主要集中在 iPhone 12/13 系列，iOS 17.x。
+现象：进入主界面后 3-5 秒崩溃，崩溃日志显示是资源加载阶段。
+未发现 Android 有同类问题。1.4.1 版本无此问题。
+玩家无法继续游戏，部分玩家已开始申请退款。</textarea>
+      <div class="row">
+        <input type="file" style="width: auto; padding: 4px;" />
+        <span class="pill">281 字符</span>
+      </div>
+
+      <div class="row" style="margin-top: 14px;">
+        <label>Effort:</label>
+        <select style="width: auto;">
+          <option>low（快/省）</option>
+          <option>medium</option>
+          <option selected>high（推荐）</option>
+          <option>max（最仔细）</option>
+        </select>
+      </div>
+
+      <div class="button-row">
+        <button class="btn-primary">运行模块</button>
+        <button class="btn-secondary">下载 .md</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="output-header">
+        <h2>输出</h2>
+        <span class="token-info">tokens: in 4823 / out 612 / cache-read 4750</span>
+      </div>
+
+      <div class="output">
+        <h1>Intake — iOS 1.4.2 登录后闪退 (iPhone 12/13, iOS 17.x)</h1>
+
+        <p><strong>Slug:</strong> ios-1-4-2-login-crash<br>
+        <strong>Source:</strong> testing — name not stated<br>
+        <strong>Received:</strong> 2026-05-12 14:23<br>
+        <strong>Type:</strong> bug<br>
+        <strong>Urgency:</strong> P1<br>
+        <strong>Affected surfaces:</strong> client</p>
+
+        <h2>Original message</h2>
+        <blockquote>来源: testing
+收到时间: 2026-05-12 14:23
+
+测试组反馈：iOS 1.4.2 版本玩家登录后闪退，目前已收到 50+ 工单。
+重现率约 30%，主要集中在 iPhone 12/13 系列，iOS 17.x。
+现象：进入主界面后 3-5 秒崩溃，崩溃日志显示是资源加载阶段。
+未发现 Android 有同类问题。1.4.1 版本无此问题。
+玩家无法继续游戏，部分玩家已开始申请退款。</blockquote>
+
+        <h2>What is being asked</h2>
+        <p>iOS 1.4.2 客户端在 iPhone 12/13 + iOS 17.x 设备上出现登录后闪退，重现率约 30%，已有 50+ 工单并伴随退款申请。需要客户端团队定位资源加载阶段的崩溃根因，并评估是否需要紧急热修复 / 撤回 1.4.2 版本。1.4.1 不受影响 → 回归性问题。</p>
+
+        <h2>Affected</h2>
+        <ul>
+          <li><strong>Players:</strong> iPhone 12 / 13 系列，iOS 17.x 的 iOS 1.4.2 用户；已知工单 50+；实际受影响用户数 not stated</li>
+          <li><strong>Systems:</strong> client（iOS 客户端，资源加载阶段）</li>
+          <li><strong>Revenue / KPI:</strong> 部分玩家已申请退款 → 直接收入影响，具体金额 not stated</li>
+        </ul>
+
+        <h2>Dependencies</h2>
+        <ul>
+          <li>客户端团队 (iOS) — 定位崩溃根因，提供 crash log 完整分析</li>
+          <li>QA / 测试组 — 提供 1.4.1 → 1.4.2 的 diff，缩小回归范围</li>
+          <li>运营 — 决定是否撤回 1.4.2 / 推送公告 / 给受影响玩家发补偿</li>
+          <li>客服 — 准备 FAQ + bot 规则覆盖（见 botrules 模块）</li>
+        </ul>
+
+        <h2>Open questions</h2>
+        <ul>
+          <li>50+ 工单对应多少独立用户？是否有重复提交？</li>
+          <li>受影响设备的市场份额是多少？（决定影响面）</li>
+          <li>1.4.2 相对 1.4.1 在资源加载部分有哪些改动？</li>
+          <li>是否已有热修复版本 (1.4.2.1) 的开发计划？ETA？</li>
+          <li>退款申请的具体数量和金额？是否已批准？</li>
+          <li>是否需要给所有 iPhone 12/13 + iOS 17.x 用户主动发邮件 / 站内信？</li>
+        </ul>
+
+        <h2>Suggested next action</h2>
+        <p>请客户端团队 (iOS) 在 4 小时内提供 crash log 根因分析 + 热修复 ETA；同时运营评估是否需要在 App Store 撤回 1.4.2 build 阻止新用户下载。<span class="streaming-indicator"></span></p>
+      </div>
+    </div>
+
+    <footer>
+      模型 claude-opus-4-7 · 系统提示已启用 prompt caching · 无新建积累式存储，每次请求互相独立
+    </footer>
+  </div>
+</body>
+</html>
