@@ -1,0 +1,3 @@
+.claude/skills/cs-intel-workflow/outputs/
+.claude/skills/cs-intel-workflow/inputs/*
+!.claude/skills/cs-intel-workflow/inputs/.gitkeep
