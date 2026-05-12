@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CS Intel Workflow — Preview</title>
+  <title>CS Intel Workflow — Interactive Preview</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -35,7 +35,6 @@
       margin-bottom: 24px;
     }
     label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
-    .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
     select, textarea, input {
       width: 100%;
       border: 1px solid #cbd5e1;
@@ -45,6 +44,7 @@
       background: white;
       font-family: inherit;
     }
+    select { cursor: pointer; }
     textarea {
       font-family: ui-monospace, "SF Mono", Menlo, monospace;
       font-size: 12px;
@@ -88,21 +88,9 @@
     }
     .output-header h2 { font-size: 14px; font-weight: 500; }
     .token-info { font-size: 12px; color: #64748b; font-family: ui-monospace, monospace; }
-    .module-desc {
-      font-size: 12px;
-      color: #475569;
-      margin-top: 6px;
-    }
-    .module-hint {
-      font-size: 11px;
-      color: #94a3b8;
-      margin-top: 4px;
-    }
-    /* Markdown rendering */
-    .output {
-      font-size: 14px;
-      line-height: 1.6;
-    }
+    .module-desc { font-size: 12px; color: #475569; margin-top: 6px; }
+    .module-hint { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .output { font-size: 14px; line-height: 1.6; }
     .output h1 {
       font-size: 18px;
       margin: 8px 0 16px;
@@ -114,6 +102,12 @@
       font-weight: 600;
       margin: 20px 0 8px;
       color: #1e293b;
+    }
+    .output h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 14px 0 6px;
+      color: #334155;
     }
     .output strong { color: #0f172a; font-weight: 600; }
     .output blockquote {
@@ -137,7 +131,7 @@
     }
     .output table {
       border-collapse: collapse;
-      margin: 8px 0;
+      margin: 10px 0;
       font-size: 13px;
       width: 100%;
     }
@@ -145,26 +139,52 @@
       border: 1px solid #e2e8f0;
       padding: 6px 10px;
       text-align: left;
+      vertical-align: top;
     }
     .output th { background: #f8fafc; font-weight: 600; }
+    .warning {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    .ship-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .badge-ship { background: #dcfce7; color: #166534; }
+    .badge-hold { background: #fef3c7; color: #92400e; }
+    .badge-revise { background: #fee2e2; color: #991b1b; }
     footer {
       text-align: center;
       font-size: 12px;
       color: #94a3b8;
       margin-top: 24px;
     }
-    .streaming-indicator {
-      display: inline-block;
-      width: 8px;
-      height: 14px;
-      background: #0f172a;
-      animation: blink 1s infinite;
-      vertical-align: middle;
-      margin-left: 2px;
+    .switcher {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
     }
-    @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
+    .switcher button {
+      background: white;
+      border: 1px solid #cbd5e1;
+      color: #475569;
+      padding: 6px 12px;
+      font-size: 13px;
+      border-radius: 6px;
+    }
+    .switcher button.active {
+      background: #0f172a;
+      color: white;
+      border-color: #0f172a;
     }
   </style>
 </head>
@@ -176,34 +196,22 @@
     </header>
 
     <div class="preview-banner">
-      ⚠ 这是静态预览（不调 API）。真实部署后所有按钮都会工作并流式拿到 Claude 的输出。
+      ⚠ 静态预览（不调 API）。点下面 6 个按钮看每个模块各自的真实样例输出。真实部署后所有按钮会工作并流式拿到 Claude 的输出。
     </div>
 
+    <div class="switcher" id="switcher"></div>
+
     <div class="card">
-      <label for="module">选择模块</label>
-      <select id="module">
-        <option>新需求录入 (intake)</option>
-        <option>游戏组发布物分析 (gameteam)</option>
-        <option>AI Bot 规则更新建议 (botrules)</option>
-        <option>Google / iOS 账号审计 (accounts)</option>
-        <option>数值测试报告 (numbers)</option>
-        <option>每日汇总 (wrap)</option>
-      </select>
-      <p class="module-desc">把来自 ops/testing/backend 的原始需求整理成结构化卡片</p>
-      <p class="module-hint">提示：粘贴需求原文。注明 source: ops / testing / backend。</p>
+      <label for="module">当前模块</label>
+      <select id="module"></select>
+      <p class="module-desc" id="desc"></p>
+      <p class="module-hint" id="hint"></p>
 
       <label style="margin-top: 16px;">输入内容（粘贴文本，或上传 .md / .txt / .csv 文件追加）</label>
-      <textarea rows="9">来源: testing
-收到时间: 2026-05-12 14:23
-
-测试组反馈：iOS 1.4.2 版本玩家登录后闪退，目前已收到 50+ 工单。
-重现率约 30%，主要集中在 iPhone 12/13 系列，iOS 17.x。
-现象：进入主界面后 3-5 秒崩溃，崩溃日志显示是资源加载阶段。
-未发现 Android 有同类问题。1.4.1 版本无此问题。
-玩家无法继续游戏，部分玩家已开始申请退款。</textarea>
+      <textarea id="input" rows="10"></textarea>
       <div class="row">
         <input type="file" style="width: auto; padding: 4px;" />
-        <span class="pill">281 字符</span>
+        <span class="pill" id="charCount">0 字符</span>
       </div>
 
       <div class="row" style="margin-top: 14px;">
@@ -224,22 +232,73 @@
 
     <div class="card">
       <div class="output-header">
-        <h2>输出</h2>
-        <span class="token-info">tokens: in 4823 / out 612 / cache-read 4750</span>
+        <h2 id="outputHeading">输出</h2>
+        <span class="token-info" id="tokens"></span>
       </div>
+      <div class="output" id="output"></div>
+    </div>
 
-      <div class="output">
-        <h1>Intake — iOS 1.4.2 登录后闪退 (iPhone 12/13, iOS 17.x)</h1>
+    <footer>
+      模型 claude-opus-4-7 · 系统提示已启用 prompt caching · 无新建积累式存储，每次请求互相独立
+    </footer>
+  </div>
 
-        <p><strong>Slug:</strong> ios-1-4-2-login-crash<br>
-        <strong>Source:</strong> testing — name not stated<br>
-        <strong>Received:</strong> 2026-05-12 14:23<br>
-        <strong>Type:</strong> bug<br>
-        <strong>Urgency:</strong> P1<br>
-        <strong>Affected surfaces:</strong> client</p>
+  <script>
+    const MODULES = {
+      intake: {
+        label: "新需求录入 (intake)",
+        desc: "把来自 ops/testing/backend 的原始需求整理成结构化卡片",
+        hint: "提示：粘贴需求原文。注明 source: ops / testing / backend。",
+      },
+      gameteam: {
+        label: "游戏组发布物分析 (gameteam)",
+        desc: "patch notes / 测试报告 / 公告的客服视角分析",
+        hint: "提示：粘贴发布内容。注明类型 (patch-notes / test-report / announcement / design-doc) 和发布日期。",
+      },
+      botrules: {
+        label: "AI Bot 规则更新建议 (botrules)",
+        desc: "根据触发内容 + 当前规则集，建议新增/修改/退役规则",
+        hint: "提示：粘贴 (1) 触发内容（通常是 gameteam 输出或 intake）和 (2) 当前规则集 / bot 平台。",
+      },
+      accounts: {
+        label: "Google / iOS 账号审计 (accounts)",
+        desc: "记录账号控制台当前状态。永远不会写入密钥/PII",
+        hint: "提示：platform: google-play 或 app-store。粘贴控制台截图描述或设置项 dump。",
+      },
+      numbers: {
+        label: "数值测试报告 (numbers)",
+        desc: "对数值改动给出 Ship / Hold / Revise 建议",
+        hint: "提示：提供 baseline、change_spec、scope。可选 target_metric 和 constraints。",
+      },
+      wrap: {
+        label: "每日汇总 (wrap)",
+        desc: "把当日所有模块产出整合成一份给下一班的简报",
+        hint: "提示：粘贴当日已产出的若干个模块报告，用 --- 分隔。",
+      },
+    };
 
-        <h2>Original message</h2>
-        <blockquote>来源: testing
+    const DEMOS = {
+      intake: {
+        input: `来源: testing
+收到时间: 2026-05-12 14:23
+
+测试组反馈：iOS 1.4.2 版本玩家登录后闪退，目前已收到 50+ 工单。
+重现率约 30%，主要集中在 iPhone 12/13 系列，iOS 17.x。
+现象：进入主界面后 3-5 秒崩溃，崩溃日志显示是资源加载阶段。
+未发现 Android 有同类问题。1.4.1 版本无此问题。
+玩家无法继续游戏，部分玩家已开始申请退款。`,
+        tokens: "tokens: in 4823 / out 612 / cache-read 4750",
+        output: `
+<h1>Intake — iOS 1.4.2 登录后闪退 (iPhone 12/13, iOS 17.x)</h1>
+<p><strong>Slug:</strong> ios-1-4-2-login-crash<br>
+<strong>Source:</strong> testing — name not stated<br>
+<strong>Received:</strong> 2026-05-12 14:23<br>
+<strong>Type:</strong> bug<br>
+<strong>Urgency:</strong> P1<br>
+<strong>Affected surfaces:</strong> client</p>
+
+<h2>Original message</h2>
+<blockquote>来源: testing
 收到时间: 2026-05-12 14:23
 
 测试组反馈：iOS 1.4.2 版本玩家登录后闪退，目前已收到 50+ 工单。
@@ -248,42 +307,617 @@
 未发现 Android 有同类问题。1.4.1 版本无此问题。
 玩家无法继续游戏，部分玩家已开始申请退款。</blockquote>
 
-        <h2>What is being asked</h2>
-        <p>iOS 1.4.2 客户端在 iPhone 12/13 + iOS 17.x 设备上出现登录后闪退，重现率约 30%，已有 50+ 工单并伴随退款申请。需要客户端团队定位资源加载阶段的崩溃根因，并评估是否需要紧急热修复 / 撤回 1.4.2 版本。1.4.1 不受影响 → 回归性问题。</p>
+<h2>What is being asked</h2>
+<p>iOS 1.4.2 客户端在 iPhone 12/13 + iOS 17.x 设备上出现登录后闪退，重现率约 30%，已有 50+ 工单并伴随退款申请。需要客户端团队定位资源加载阶段的崩溃根因，并评估是否需要紧急热修复 / 撤回 1.4.2 版本。1.4.1 不受影响 → 回归性问题。</p>
 
-        <h2>Affected</h2>
-        <ul>
-          <li><strong>Players:</strong> iPhone 12 / 13 系列，iOS 17.x 的 iOS 1.4.2 用户；已知工单 50+；实际受影响用户数 not stated</li>
-          <li><strong>Systems:</strong> client（iOS 客户端，资源加载阶段）</li>
-          <li><strong>Revenue / KPI:</strong> 部分玩家已申请退款 → 直接收入影响，具体金额 not stated</li>
-        </ul>
+<h2>Affected</h2>
+<ul>
+  <li><strong>Players:</strong> iPhone 12 / 13 系列，iOS 17.x 的 iOS 1.4.2 用户；已知工单 50+；实际受影响用户数 not stated</li>
+  <li><strong>Systems:</strong> client（iOS 客户端，资源加载阶段）</li>
+  <li><strong>Revenue / KPI:</strong> 部分玩家已申请退款 → 直接收入影响，具体金额 not stated</li>
+</ul>
 
-        <h2>Dependencies</h2>
-        <ul>
-          <li>客户端团队 (iOS) — 定位崩溃根因，提供 crash log 完整分析</li>
-          <li>QA / 测试组 — 提供 1.4.1 → 1.4.2 的 diff，缩小回归范围</li>
-          <li>运营 — 决定是否撤回 1.4.2 / 推送公告 / 给受影响玩家发补偿</li>
-          <li>客服 — 准备 FAQ + bot 规则覆盖（见 botrules 模块）</li>
-        </ul>
+<h2>Dependencies</h2>
+<ul>
+  <li>客户端团队 (iOS) — 定位崩溃根因，提供 crash log 完整分析</li>
+  <li>QA / 测试组 — 提供 1.4.1 → 1.4.2 的 diff，缩小回归范围</li>
+  <li>运营 — 决定是否撤回 1.4.2 / 推送公告 / 给受影响玩家发补偿</li>
+  <li>客服 — 准备 FAQ + bot 规则覆盖（见 botrules 模块）</li>
+</ul>
 
-        <h2>Open questions</h2>
-        <ul>
-          <li>50+ 工单对应多少独立用户？是否有重复提交？</li>
-          <li>受影响设备的市场份额是多少？（决定影响面）</li>
-          <li>1.4.2 相对 1.4.1 在资源加载部分有哪些改动？</li>
-          <li>是否已有热修复版本 (1.4.2.1) 的开发计划？ETA？</li>
-          <li>退款申请的具体数量和金额？是否已批准？</li>
-          <li>是否需要给所有 iPhone 12/13 + iOS 17.x 用户主动发邮件 / 站内信？</li>
-        </ul>
+<h2>Open questions</h2>
+<ul>
+  <li>50+ 工单对应多少独立用户？是否有重复提交？</li>
+  <li>受影响设备的市场份额是多少？（决定影响面）</li>
+  <li>1.4.2 相对 1.4.1 在资源加载部分有哪些改动？</li>
+  <li>是否已有热修复版本 (1.4.2.1) 的开发计划？ETA？</li>
+  <li>退款申请的具体数量和金额？是否已批准？</li>
+  <li>是否需要给所有 iPhone 12/13 + iOS 17.x 用户主动发邮件 / 站内信？</li>
+</ul>
 
-        <h2>Suggested next action</h2>
-        <p>请客户端团队 (iOS) 在 4 小时内提供 crash log 根因分析 + 热修复 ETA；同时运营评估是否需要在 App Store 撤回 1.4.2 build 阻止新用户下载。<span class="streaming-indicator"></span></p>
-      </div>
-    </div>
+<h2>Suggested next action</h2>
+<p>请客户端团队 (iOS) 在 4 小时内提供 crash log 根因分析 + 热修复 ETA；同时运营评估是否需要在 App Store 撤回 1.4.2 build 阻止新用户下载。</p>
+`,
+      },
 
-    <footer>
-      模型 claude-opus-4-7 · 系统提示已启用 prompt caching · 无新建积累式存储，每次请求互相独立
-    </footer>
-  </div>
+      gameteam: {
+        input: `Type: patch-notes
+Published: 2026-05-12
+
+Patch 1.4.3 Internal Notes
+
+Player-facing changes:
+- 新 PvP 地图 "Stormwood" 加入排位轮换
+- 每日任务金币奖励 从 200 提升到 300
+- 英雄 Aelaris 的 Q 技能伤害下调（具体数值未给）
+- 登录奖励日历重置以修复 5/1 漏领问题
+
+Backend / infra:
+- 新崩溃报告系统接入 (Sentry SDK 7.x)
+- iOS 1.4.2 iPhone 12/13 闪退已含修复
+
+Known issues (not fixed):
+- 首次启动有几率好友列表加载失败（重新登录可解）
+- 新地图俄语本地化部分缺失`,
+        tokens: "tokens: in 5012 / out 824 / cache-read 4750",
+        output: `
+<h1>Game Team Analysis — Patch 1.4.3 内部说明</h1>
+<p><strong>Slug:</strong> patch-1-4-3-notes<br>
+<strong>Type:</strong> patch-notes<br>
+<strong>Published:</strong> 2026-05-12<br>
+<strong>Items inventoried:</strong> 8</p>
+
+<h2>Top 5 player-facing items</h2>
+
+<h3>1. 新 PvP 地图 "Stormwood" 加入排位</h3>
+<ul>
+  <li><strong>What changed:</strong> 排位轮换新增一张地图。</li>
+  <li><strong>Visibility:</strong> visible</li>
+  <li><strong>Sentiment risk:</strong> mixed — 新内容通常受欢迎，但俄语本地化缺失 + 排位影响是负面信号</li>
+  <li><strong>Likely player questions:</strong>
+    <ul>
+      <li>新地图什么时候开放？是否上线即可玩排位？</li>
+      <li>俄语界面看不到地图说明，怎么办？</li>
+      <li>这张地图会影响我现有段位吗？</li>
+    </ul>
+  </li>
+  <li><strong>Suggested CS reply angle:</strong> 强调新内容；对俄语用户主动承认本地化缺失并给临时方案（切英语）；段位不重置。</li>
+  <li><strong>Source line:</strong> "新 PvP 地图 'Stormwood' 加入排位轮换"</li>
+</ul>
+
+<h3>2. 每日任务金币 200 → 300</h3>
+<ul>
+  <li><strong>What changed:</strong> 每日任务金币奖励 +50%。</li>
+  <li><strong>Visibility:</strong> visible</li>
+  <li><strong>Sentiment risk:</strong> positive — 直接的玩家福利</li>
+  <li><strong>Likely player questions:</strong>
+    <ul>
+      <li>我已经完成的任务能补发吗？</li>
+      <li>这次调整是永久的还是限时的？</li>
+      <li>会不会影响道具价格 / 通胀？</li>
+    </ul>
+  </li>
+  <li><strong>Suggested CS reply angle:</strong> 永久调整（除非另有说明）；不补发已结算的；不评论通胀（让数值组先看 numbers 模块）。</li>
+  <li><strong>Source line:</strong> "每日任务金币奖励 从 200 提升到 300"</li>
+</ul>
+
+<h3>3. Aelaris Q 技能伤害下调</h3>
+<ul>
+  <li><strong>What changed:</strong> 削弱 Aelaris 的 Q。magnitude not stated.</li>
+  <li><strong>Visibility:</strong> visible</li>
+  <li><strong>Sentiment risk:</strong> negative — Aelaris 玩家会不满</li>
+  <li><strong>Likely player questions:</strong>
+    <ul>
+      <li>具体削了多少？</li>
+      <li>能不能退英雄 / 退皮肤？</li>
+      <li>是不是要 rework 整个英雄？</li>
+    </ul>
+  </li>
+  <li><strong>Suggested CS reply angle:</strong> 数值具体待官方公告；退英雄退皮肤按现有政策（通常不退）；非 rework，是平衡调整。</li>
+  <li><strong>Source line:</strong> "英雄 Aelaris 的 Q 技能伤害下调（具体数值未给）"</li>
+</ul>
+
+<h3>4. 登录日历重置（5/1 漏领修复）</h3>
+<ul>
+  <li><strong>What changed:</strong> 重置登录日历以修复 5/1 漏领。</li>
+  <li><strong>Visibility:</strong> partly-visible</li>
+  <li><strong>Sentiment risk:</strong> mixed — 漏领的玩家受益；已正常领的玩家可能困惑</li>
+  <li><strong>Likely player questions:</strong>
+    <ul>
+      <li>我之前领过的会被回收吗？</li>
+      <li>5/1 那天没领的现在能补吗？</li>
+      <li>"重置"具体怎么个重置法？</li>
+    </ul>
+  </li>
+  <li><strong>Suggested CS reply angle:</strong> 已领的不回收；漏领的会被重新计入；建议玩家次日检查邮箱 / 奖励页。</li>
+  <li><strong>Source line:</strong> "登录奖励日历重置以修复 5/1 漏领问题"</li>
+</ul>
+
+<h3>5. iOS 1.4.2 iPhone 12/13 闪退已修复</h3>
+<ul>
+  <li><strong>What changed:</strong> 包含 1.4.2 闪退的修复。</li>
+  <li><strong>Visibility:</strong> visible</li>
+  <li><strong>Sentiment risk:</strong> positive — 但受影响玩家可能仍想要补偿</li>
+  <li><strong>Likely player questions:</strong>
+    <ul>
+      <li>我之前闪退期间损失的体力 / 时间能补吗？</li>
+      <li>更新后还会闪吗？</li>
+      <li>已经申请退款的玩家怎么处理？</li>
+    </ul>
+  </li>
+  <li><strong>Suggested CS reply angle:</strong> 修复确认；补偿政策需运营确认（见相关 intake）；退款按 Apple 流程处理。</li>
+  <li><strong>Source line:</strong> "iOS 1.4.2 iPhone 12/13 闪退已含修复"</li>
+</ul>
+
+<h2>Full inventory</h2>
+<table>
+  <tr><th>#</th><th>Item</th><th>Player-visible</th><th>Sentiment risk</th><th>Source line</th></tr>
+  <tr><td>1</td><td>新地图 Stormwood</td><td>visible</td><td>mixed</td><td>line 4</td></tr>
+  <tr><td>2</td><td>每日任务金币 +50%</td><td>visible</td><td>positive</td><td>line 5</td></tr>
+  <tr><td>3</td><td>Aelaris Q 削弱</td><td>visible</td><td>negative</td><td>line 6</td></tr>
+  <tr><td>4</td><td>登录日历重置</td><td>partly-visible</td><td>mixed</td><td>line 7</td></tr>
+  <tr><td>5</td><td>Sentry SDK 接入</td><td>invisible</td><td>neutral</td><td>line 10</td></tr>
+  <tr><td>6</td><td>iOS 1.4.2 闪退修复</td><td>visible</td><td>positive</td><td>line 11</td></tr>
+  <tr><td>7</td><td>好友列表加载偶失败</td><td>visible</td><td>negative</td><td>line 14</td></tr>
+  <tr><td>8</td><td>俄语本地化缺失</td><td>visible</td><td>negative</td><td>line 15</td></tr>
+</table>
+
+<h2>Unstated implications</h2>
+<ul>
+  <li>Aelaris Q 削弱幅度未给 — 客服无法给玩家具体数字。需要数值组补充。</li>
+  <li>金币 +50% 对经济通胀的影响未提 — 应触发 numbers 模块走一遍。</li>
+  <li>Sentry SDK 接入意味着崩溃数据采集变更，可能影响隐私公告 / GDPR 文案。</li>
+</ul>
+
+<h2>Conflicts with prior state</h2>
+<ul>
+  <li>登录日历重置 可能与早先「奖励一次到账后不可撤销」的 FAQ 冲突 — 需要 botrules 调整。</li>
+</ul>
+
+<h2>Recommended CS prep</h2>
+<ul>
+  <li>FAQ 更新需要: <strong>yes</strong> — 走 botrules 模块</li>
+  <li>Macro 更新需要: 新地图常见问题、金币奖励变更、Aelaris 削弱、闪退修复补偿政策</li>
+  <li>Watch-list: 俄语用户工单量、Aelaris 玩家退款申请、补登录奖励争议</li>
+</ul>
+`,
+      },
+
+      botrules: {
+        input: `bot_platform: Intercom
+
+trigger_content:
+(intake 模块输出) iOS 1.4.2 玩家登录闪退 P1，已修复在 1.4.3。
+(gameteam 模块输出) Patch 1.4.3：每日任务金币 200→300，Aelaris Q 削弱，新地图 Stormwood。
+
+current_rules:
+- #0012 "登录失败通用" → 引导玩家清缓存重启
+- #0027 "退款申请" → 引导走 App Store 流程
+- #0041 "金币不够" → 介绍获取金币的途径`,
+        tokens: "tokens: in 5240 / out 1043 / cache-read 4750",
+        output: `
+<h1>Bot Rule Update Proposal — patch-1-4-3 + ios-crash 综合更新</h1>
+<p><strong>Slug:</strong> patch-1-4-3-bot-rules<br>
+<strong>Trigger:</strong> patch-1-4-3-notes 分析 + ios-1-4-2-login-crash intake<br>
+<strong>Bot platform:</strong> Intercom<br>
+<strong>Current rules reviewed:</strong> 3<br>
+<strong>Proposals:</strong> 5 new, 2 edited, 0 retired</p>
+
+<h2>Intent coverage map</h2>
+<table>
+  <tr><th>Intent</th><th>Covered by existing rule?</th><th>Action</th></tr>
+  <tr><td>iOS 1.4.2 闪退求助</td><td>Rule #0012 (partial — 太泛)</td><td>EDIT</td></tr>
+  <tr><td>闪退期间损失补偿</td><td>No</td><td>ADD</td></tr>
+  <tr><td>1.4.2 玩家询问是否退款</td><td>Rule #0027 (full)</td><td>KEEP</td></tr>
+  <tr><td>每日金币 200→300 询问 / 补发</td><td>No</td><td>ADD</td></tr>
+  <tr><td>Aelaris 削弱 / 退英雄</td><td>No</td><td>ADD</td></tr>
+  <tr><td>新地图 Stormwood 询问</td><td>No</td><td>ADD</td></tr>
+  <tr><td>登录日历重置 / 漏领</td><td>No</td><td>ADD</td></tr>
+</table>
+
+<h2>P0 — must add before next CS shift</h2>
+
+<h3>Proposal A1 — EDIT: rule #0012 "登录失败通用"</h3>
+<ul>
+  <li><strong>Before:</strong>
+    <blockquote>登录失败一般可以通过清缓存或重启游戏解决。</blockquote>
+  </li>
+  <li><strong>After:</strong>
+    <blockquote>登录失败一般可以通过清缓存或重启游戏解决。如果您是 iPhone 12 / 13 + iOS 17.x 用户且在 1.4.2 版本遇到登录后闪退，建议先升级到 1.4.3（已修复）。</blockquote>
+  </li>
+  <li><strong>Why changed:</strong> 旧规则太泛，对 1.4.2 闪退用户没有可执行步骤。Source: ios-1-4-2-login-crash intake。</li>
+</ul>
+
+<h3>Proposal A2 — ADD: "1.4.2 闪退补偿询问"</h3>
+<ul>
+  <li><strong>Trigger phrases:</strong> "闪退期间损失能补吗", "1.4.2 没法玩怎么办", "因为 bug 损失了体力", "iPhone 12 进不去游戏"</li>
+  <li><strong>Bot response:</strong>
+    <blockquote>非常抱歉给您带来不便。1.4.2 闪退已在 1.4.3 修复，请先升级。关于损失补偿，我会帮您转接专人处理。</blockquote>
+  </li>
+  <li><strong>Escalation:</strong> 立即转人工 — 补偿政策需运营决策</li>
+  <li><strong>Source justification:</strong> intake "玩家无法继续游戏，部分玩家已开始申请退款"</li>
+</ul>
+
+<h3>Proposal A3 — ADD: "登录日历重置咨询"</h3>
+<ul>
+  <li><strong>Trigger phrases:</strong> "登录奖励重置", "5/1 没领的怎么办", "之前领过的会回收吗"</li>
+  <li><strong>Bot response:</strong>
+    <blockquote>1.4.3 重置了登录日历，主要用来补发 5/1 漏领。<br>• 之前已正常领的不会回收<br>• 5/1 漏领的会在更新后重新计入<br>请在更新后查看邮箱 / 奖励页。</blockquote>
+  </li>
+  <li><strong>Escalation:</strong> 仍未到账 → 转人工查账户</li>
+  <li><strong>Source justification:</strong> gameteam "登录奖励日历重置以修复 5/1 漏领问题"</li>
+</ul>
+
+<h2>P1 — should add this week</h2>
+
+<h3>Proposal B1 — ADD: "每日金币变更咨询"</h3>
+<ul>
+  <li><strong>Trigger phrases:</strong> "金币变多了", "每日任务奖励涨了", "之前的金币能补吗", "300 金币是永久的吗"</li>
+  <li><strong>Bot response:</strong>
+    <blockquote>1.4.3 起每日任务金币从 200 调整为 300，为永久调整（除非另有公告）。已结算的任务不补发。</blockquote>
+  </li>
+  <li><strong>Escalation:</strong> 不需要</li>
+  <li><strong>Source justification:</strong> gameteam "每日任务金币奖励 从 200 提升到 300"</li>
+</ul>
+
+<h3>Proposal B2 — ADD: "Aelaris 削弱咨询"</h3>
+<ul>
+  <li><strong>Trigger phrases:</strong> "Aelaris 削了多少", "Q 砍了几点", "Aelaris 退英雄", "买的皮肤还能退吗"</li>
+  <li><strong>Bot response:</strong>
+    <blockquote>1.4.3 对 Aelaris Q 进行了平衡性调整，具体数值请关注官方公告。<br>这是平衡调整，并非英雄 rework。<br>关于退英雄 / 退皮肤的请求，我会帮您转接专人处理。</blockquote>
+  </li>
+  <li><strong>Escalation:</strong> 退款相关 → 转人工</li>
+  <li><strong>Source justification:</strong> gameteam "英雄 Aelaris 的 Q 技能伤害下调（具体数值未给）"</li>
+</ul>
+
+<h2>P2 — nice to have</h2>
+
+<h3>Proposal C1 — ADD: "Stormwood 地图咨询"</h3>
+<ul>
+  <li><strong>Trigger phrases:</strong> "Stormwood 什么时候开", "新地图说明", "新地图影响段位吗"</li>
+  <li><strong>Bot response:</strong>
+    <blockquote>新地图 Stormwood 已加入排位轮换，不影响当前段位。详细玩法请见游戏内说明。</blockquote>
+  </li>
+  <li><strong>Source justification:</strong> gameteam "新 PvP 地图 'Stormwood' 加入排位轮换"</li>
+</ul>
+
+<h2>Retirement candidates</h2>
+<p>无 — 现有 3 条规则中没有被 1.4.3 直接淘汰的。</p>
+
+<h2>Open decisions for the operator</h2>
+<ul>
+  <li><strong>1.4.2 闪退是否给补偿？</strong> Proposal A2 的 bot 回复目前是 "转人工"，如果运营决定统一发放（例如每位受影响玩家送 200 金币 + 5 体力），可以把 A2 的回复改成具体数字。</li>
+  <li><strong>Aelaris Q 削弱的具体数值什么时候能给客服？</strong> 在数值公开前，Proposal B2 只能说 "具体数值待官方公告"，玩家不满情绪会延续。</li>
+  <li><strong>俄语本地化缺失</strong>是否需要一条专门的 bot 规则？取决于俄语用户占比，未给数据。</li>
+</ul>
+`,
+      },
+
+      accounts: {
+        input: `platform: google-play
+purpose: routine
+state_dump:
+
+Google Play Console — App "ExampleGame"
+Screen: App content → Privacy policy
+
+Privacy policy URL: https://example.com/privacy
+Last updated: 2025-09-14
+
+App access: All functionality available without special access
+Ads: Yes, contains ads
+Content rating: PEGI 12
+Target audience: 13+
+News app: No
+COVID-19 contact tracing: No
+
+Data safety:
+- Personal info collected: Email address (required for account)
+- Personal info shared: None
+- Encryption in transit: Yes
+- Users can request data deletion: Yes (in-app)
+- Committed to Play Families Policy: Yes
+
+Team roles (5 members):
+- admin@example.com — Admin
+- james.smith@example.com — Developer
+- l.chen@example.com — Marketer
+- ops@example.com — Finance
+- old.intern@example.com — Tester (last active: 2024-11)
+
+API access keys:
+- Service account key XYZ-2023-... (rotated 2024-03-15)
+- Play Integrity API: enabled
+
+Signing:
+- Play App Signing: Enabled
+- Upload key: present
+- App signing key: managed by Google`,
+        tokens: "tokens: in 4980 / out 752 / cache-read 4750",
+        output: `
+<div class="warning">⚠ Sensitive value detected in input — redacted from this artifact</div>
+
+<h1>Account Audit — google-play — 2026-05-12</h1>
+<p><strong>Platform:</strong> google-play<br>
+<strong>Console screen:</strong> Google Play Console → App content → Privacy policy + Team / API / Signing<br>
+<strong>Purpose:</strong> routine<br>
+<strong>Operator:</strong> self</p>
+
+<h2>Settings snapshot</h2>
+<table>
+  <tr><th>Field</th><th>Value</th><th>Notes</th></tr>
+  <tr><td>App name</td><td>ExampleGame</td><td>—</td></tr>
+  <tr><td>Privacy policy URL</td><td>https://example.com/privacy</td><td>last updated 2025-09-14 — &gt;6 个月，建议复查</td></tr>
+  <tr><td>App access</td><td>All functionality available</td><td>—</td></tr>
+  <tr><td>Ads</td><td>Yes</td><td>—</td></tr>
+  <tr><td>Content rating</td><td>PEGI 12</td><td>—</td></tr>
+  <tr><td>Target audience</td><td>13+</td><td>—</td></tr>
+  <tr><td>News app</td><td>No</td><td>—</td></tr>
+  <tr><td>Data: Email collected</td><td>required for account</td><td>记录在隐私政策</td></tr>
+  <tr><td>Data: Personal info shared</td><td>None</td><td>—</td></tr>
+  <tr><td>Encryption in transit</td><td>Yes</td><td>—</td></tr>
+  <tr><td>In-app data deletion</td><td>Yes</td><td>—</td></tr>
+  <tr><td>Play Families Policy</td><td>Committed</td><td>—</td></tr>
+  <tr><td>Service account key</td><td>present, REDACTED</td><td>last rotated 2024-03-15 (&gt;14 个月)</td></tr>
+  <tr><td>Play Integrity API</td><td>enabled</td><td>—</td></tr>
+  <tr><td>Play App Signing</td><td>Enabled (key managed by Google)</td><td>—</td></tr>
+  <tr><td>Upload key</td><td>present, REDACTED</td><td>—</td></tr>
+</table>
+
+<h2>Roles / access</h2>
+<table>
+  <tr><th>Member</th><th>Role</th><th>Last active</th><th>Notes</th></tr>
+  <tr><td>Admin (A.)</td><td>Admin</td><td>recent</td><td>—</td></tr>
+  <tr><td>Lead dev (J.S.)</td><td>Developer</td><td>recent</td><td>—</td></tr>
+  <tr><td>Marketer (L.C.)</td><td>Marketer</td><td>recent</td><td>—</td></tr>
+  <tr><td>Finance ops (O.)</td><td>Finance</td><td>recent</td><td>—</td></tr>
+  <tr><td>Former tester (O.I.)</td><td>Tester</td><td>2024-11 (&gt;6 个月)</td><td>停用账号或回收权限</td></tr>
+</table>
+
+<h2>Delta vs prior audit</h2>
+<p>No prior audit found for this platform — this is the baseline.</p>
+
+<h2>Drift-risk watchlist</h2>
+<ul>
+  <li>[ ] <strong>Service account key</strong> — 最近一次轮换 2024-03-15，已经 &gt;14 个月。建议 90 天一轮，立即轮换。</li>
+  <li>[ ] <strong>Upload key</strong> — Play App Signing 启用了，但 upload key 一旦丢失需要 Google 协助恢复。确保有离线备份。</li>
+  <li>[ ] <strong>Privacy policy</strong> — 2025-09-14 更新，距今约 8 个月。检查是否仍涵盖当前数据收集行为（特别是 Sentry SDK 接入后的崩溃数据收集）。</li>
+  <li>[ ] <strong>Play Console payment profile status</strong> — 本次 dump 未涵盖，下一次审计需补充。</li>
+  <li>[ ] <strong>Policy violation flags</strong> — 本次 dump 未涵盖，下一次审计需补充。</li>
+  <li>[ ] <strong>停用账户 Former tester (O.I.)</strong> — 半年未活跃，建议直接回收权限。</li>
+</ul>
+
+<h2>Action items</h2>
+<ul>
+  <li>[ ] 立即轮换 Service account key — owner: self — due: 2026-05-19</li>
+  <li>[ ] 回收 Former tester (O.I.) 的 Tester 权限 — owner: self — due: 2026-05-15</li>
+  <li>[ ] 审查 privacy policy 是否覆盖 Sentry SDK 数据采集 — owner: self — due: 2026-05-26</li>
+  <li>[ ] 下次审计补充: payment profile + policy violation flags + 全部 IAP 产品清单</li>
+  <li>[ ] 验证 upload key 离线备份存在且可恢复 — owner: self — due: 2026-05-19</li>
+</ul>
+
+<h2>What was NOT verified this audit</h2>
+<ul>
+  <li>Play Console → 财务 → 付款方式 / 银行账户</li>
+  <li>Play Console → 政策与计划 → 政策违规记录</li>
+  <li>Play Console → 应用内商品（IAP 产品列表）</li>
+  <li>Play Console → 测试 → 内部测试 / 封闭测试列表</li>
+  <li>Play Console → 应用完整性 → API 密钥配置详情</li>
+</ul>
+`,
+      },
+
+      numbers: {
+        input: `scope: economy-loop
+target_metric: D7 retention
+constraints:
+- 单日获取金币上限不超过 1500（防爆）
+- 不影响 IAP 金币包销量超过 5%
+
+baseline:
+- 每日任务金币 = 200 / 任务
+- 每日任务数 = 5
+- 玩家平均完成任务数 = 4.2
+- IAP 最小金币包 = 1000 金币 / $0.99
+
+change_spec:
+- 每日任务金币 = 300 / 任务（+50%）
+- 任务数和完成率不变`,
+        tokens: "tokens: in 5108 / out 982 / cache-read 4750",
+        output: `
+<h1>Numbers Test — 每日任务金币 200 → 300</h1>
+<p><strong>Slug:</strong> daily-quest-gold-200-to-300<br>
+<strong>Scope:</strong> economy-loop<br>
+<strong>Target metric:</strong> D7 retention<br>
+<strong>Constraints:</strong>
+<ul>
+  <li>单日金币上限不超过 1500</li>
+  <li>不影响 IAP 金币包销量超过 5%</li>
+</ul></p>
+
+<h2>Change summary (plain language)</h2>
+<p>每个每日任务的金币奖励从 200 提升到 300（+50%）。任务数（5）和玩家完成率（4.2）不变。等价于把玩家平均每日金币收入从 840 提升到 1260（+50%）。</p>
+<p><strong>单位确认:</strong> 全部以 "金币 / 任务" 为单位，无单位歧义。</p>
+
+<h2>Field-level deltas</h2>
+<table>
+  <tr><th>Field</th><th>Unit</th><th>Before</th><th>After</th><th>Δ abs</th><th>Δ rel</th><th>Notes</th></tr>
+  <tr><td>金币 / 每日任务</td><td>金币</td><td>200</td><td>300</td><td>+100</td><td>+50%</td><td>主改动</td></tr>
+  <tr><td>玩家平均每日金币（任务来源）</td><td>金币 / 日</td><td>840</td><td>1260</td><td>+420</td><td>+50%</td><td>= 完成率 4.2 × 单位金币</td></tr>
+  <tr><td>满任务每日金币（理论上限）</td><td>金币 / 日</td><td>1000</td><td>1500</td><td>+500</td><td>+50%</td><td>= 任务数 5 × 单位金币</td></tr>
+</table>
+
+<h2>Worked examples (不同完成率下)</h2>
+<table>
+  <tr><th>玩家档</th><th>完成任务数</th><th>Before</th><th>After</th><th>Δ</th></tr>
+  <tr><td>休闲（low）</td><td>2 / 5</td><td>400</td><td>600</td><td>+200</td></tr>
+  <tr><td>核心（mid）</td><td>4.2 / 5 (平均)</td><td>840</td><td>1260</td><td>+420</td></tr>
+  <tr><td>满任务（high）</td><td>5 / 5</td><td>1000</td><td>1500</td><td>+500</td></tr>
+</table>
+
+<h2>Downstream effects</h2>
+<table>
+  <tr><th>System</th><th>Direction</th><th>Magnitude</th><th>Confidence</th><th>Reason</th></tr>
+  <tr><td>IAP 最小金币包 (1000 金币 / $0.99) 销量</td><td>↓</td><td>M</td><td>med</td><td>玩家每日金币 +420，覆盖 1000-金币包销量的边际用户会减少。具体下降幅度需 A/B 数据。</td></tr>
+  <tr><td>IAP 大金币包销量</td><td>↓ 或 持平</td><td>S</td><td>low</td><td>大包用户对每日 420 金币差额不敏感。</td></tr>
+  <tr><td>金币商店物品周转</td><td>↑</td><td>M-L</td><td>med</td><td>玩家可支配金币更多，商店物品消耗加快。</td></tr>
+  <tr><td>金币-钻石兑换比（如果有）</td><td>↑ 通胀压力</td><td>S-M</td><td>med</td><td>金币供给 +50%，sink 未变 → 金币贬值。</td></tr>
+  <tr><td>D7 retention (target)</td><td>↑</td><td>S-M / unknown</td><td>low</td><td>金币福利通常带来正向 retention，但 +50% 是否能拉动 D7 取决于玩家是否被金币卡住进度。无现有数据。</td></tr>
+</table>
+
+<h2>Break test</h2>
+<table>
+  <tr><th>Input</th><th>Output</th><th>Sensible?</th></tr>
+  <tr><td>min (0 任务完成)</td><td>0 金币</td><td>yes — 0 完成无收入符合预期</td></tr>
+  <tr><td>max (5 任务完成)</td><td>1500 金币 / 日</td><td>yes — 恰好等于约束上限 1500，<strong>无 headroom</strong></td></tr>
+  <tr><td>10× (不可达，但假设 50 任务)</td><td>15000 金币 / 日</td><td>n/a — 任务数硬上限 5，公式层面无破坏，但若未来加任务则会破上限</td></tr>
+</table>
+
+<h2>Constraint check</h2>
+<table>
+  <tr><th>Constraint</th><th>Result</th><th>Evidence</th></tr>
+  <tr><td>单日金币不超过 1500</td><td>pass（恰好等于）</td><td>5 任务 × 300 = 1500，无超出，但<strong>无缓冲</strong>。任何额外金币来源（活动、首充）会立刻破上限。</td></tr>
+  <tr><td>IAP 1000-金币包销量下降不超过 5%</td><td>requires-playtest</td><td>无现有 A/B 数据；玩家行为变化需 1-2 周观察。预测下降 3-8%，置信度低。</td></tr>
+</table>
+
+<h2>Recommendation</h2>
+<p><strong>Ship / Hold / Revise:</strong> <span class="ship-badge badge-hold">Hold</span></p>
+<p><strong>Reason:</strong> IAP 销量约束 "下降不超过 5%" 无法在 ship 前验证，且 +50% 的金币供给对 1000-金币包是显著替代品；建议先 A/B test 1 周再决定。</p>
+<p><strong>If revise, suggested adjustments:</strong></p>
+<ul>
+  <li>从 +50% 降到 +25%（200 → 250），降低对 IAP 边际用户的替代效应，同时仍是正向调整</li>
+  <li>或保持 +50%，但同步把最小 IAP 金币包从 1000 调到 1500（保持差距）</li>
+  <li>或保持 +50%，但只对特定 cohort（如 D3-D7 玩家）发放，避免影响全量 IAP</li>
+</ul>
+
+<h2>What this report did NOT test</h2>
+<ul>
+  <li>真实玩家行为（任务完成率是否会因为奖励提升而上升 → 进一步放大金币供给）</li>
+  <li>金币 sink 端是否同步调整（商店物品价格 / 兑换比例）</li>
+  <li>对特定付费档（鲸鱼 / 海豚 / 小鱼）的差异化影响</li>
+  <li>跨地区差异（不同地区 IAP 价格敏感度不同）</li>
+</ul>
+`,
+      },
+
+      wrap: {
+        input: `（自动从 /outputs/2026-05-12/INDEX.md 读取，演示场景下手动粘贴当日产出列表）
+
+intake: ios-1-4-2-login-crash (P1)
+gameteam: patch-1-4-3-notes (8 项变更)
+botrules: patch-1-4-3-bot-rules (5 新增 / 2 编辑)
+accounts: google-play (2026-05-12 baseline)
+numbers: daily-quest-gold-200-to-300 (Hold)`,
+        tokens: "tokens: in 4892 / out 538 / cache-read 4750",
+        output: `
+<h1>CS Intel Wrap — 2026-05-12</h1>
+
+<h2>Today at a glance</h2>
+<ul>
+  <li>Artifacts produced: <strong>5</strong></li>
+  <li>P0 / P1 intakes: <strong>1</strong> (1 个 P1)</li>
+  <li>Bot rule proposals: <strong>7</strong> (3 P0 / 2 P1 / 1 P2 / 1 edit)</li>
+  <li>Modules skipped today: <em>none</em></li>
+</ul>
+
+<h2>Per-module headline</h2>
+
+<h3>Intake</h3>
+<ul>
+  <li><strong>ios-1-4-2-login-crash (P1):</strong> iOS 1.4.2 在 iPhone 12/13 + iOS 17.x 上登录后闪退，重现率 ~30%，已有 50+ 工单和退款申请，1.4.3 已修复。</li>
+</ul>
+
+<h3>Game team analysis</h3>
+<ul>
+  <li><strong>patch-1-4-3-notes:</strong> 8 项改动，5 项玩家可见。最值得关注：(1) Aelaris Q 削弱数值未给，(2) 每日金币 +50%（需走 numbers 验证），(3) 登录日历重置与旧 FAQ 冲突。</li>
+</ul>
+
+<h3>Bot rule proposals</h3>
+<ul>
+  <li><strong>patch-1-4-3-bot-rules:</strong> 3 P0（含 1 个 edit）+ 2 P1 + 1 P2。所有 P0 在下班前可上线。两个 open decisions 阻塞：1.4.2 闪退补偿政策 + Aelaris 削弱具体数值。</li>
+</ul>
+
+<h3>Account audits</h3>
+<ul>
+  <li><strong>google-play (baseline):</strong> Service account key 已超过 14 个月未轮换，<strong>建议立即轮换</strong>；一位停用半年的 tester 仍有权限；隐私政策需复查（Sentry SDK 接入）。</li>
+</ul>
+
+<h3>Numbers tests</h3>
+<ul>
+  <li><strong>daily-quest-gold-200-to-300:</strong> <span class="ship-badge badge-hold">Hold</span> — 建议先 A/B 1 周验证对 IAP 1000-金币包销量的影响（约束 "下降不超过 5%" 无法 ship 前验证）。</li>
+</ul>
+
+<h2>Cross-module checks</h2>
+<ul>
+  <li>[x] Every P0/P1 intake has a bot rule proposal: <strong>yes</strong> — ios-1-4-2-login-crash 已被 patch-1-4-3-bot-rules 的 Proposal A1 (edit) + A2 (add) 覆盖。</li>
+  <li>[x] Every player-facing game-team item has a bot rule: <strong>yes</strong> — 5 个 top items 都在 botrules 提案中（A1/A2 闪退/补偿、A3 登录日历、B1 金币、B2 Aelaris、C1 Stormwood）。</li>
+  <li>[ ] Every shipped numbers change has downstream coverage: <strong>n/a</strong> — daily-quest-gold 推荐 Hold，未 ship，无需 downstream。</li>
+</ul>
+
+<h2>Open questions for the operator</h2>
+<ol>
+  <li><strong>1.4.2 闪退是否给统一补偿？</strong> — from patch-1-4-3-bot-rules (Proposal A2 阻塞)</li>
+  <li><strong>Aelaris Q 削弱的具体数值什么时候能公开？</strong> — from patch-1-4-3-bot-rules (Proposal B2 阻塞)</li>
+  <li><strong>每日金币 +50% 改动是否同意走 A/B 而不是直接 ship？</strong> — from daily-quest-gold-200-to-300</li>
+  <li><strong>Service account key 立即轮换的窗口选什么时候？</strong> — from google-play 审计</li>
+</ol>
+
+<h2>Top 3 for tomorrow</h2>
+<ol>
+  <li><strong>上线 3 个 P0 bot 规则</strong>（A1 edit、A2 闪退补偿转人工、A3 登录日历）— 客服 shift 一开始就能减少重复工单。</li>
+  <li><strong>轮换 Google Play service account key 并回收离职 tester 权限</strong> — 已经超过审计窗口 14 个月，是 audit 出来的最高风险项。</li>
+  <li><strong>把 numbers 报告交给数值组，确认是否同意 Hold + A/B</strong> — 决定后才能解锁 botrules 里的 B1 金币咨询的最终文案。</li>
+</ol>
+
+<h2>Skipped modules</h2>
+<p>None — 今日 5 个模块全部产出。</p>
+`,
+      },
+    };
+
+    const orderedKeys = ["intake", "gameteam", "botrules", "accounts", "numbers", "wrap"];
+
+    const switcher = document.getElementById("switcher");
+    const moduleEl = document.getElementById("module");
+    const descEl = document.getElementById("desc");
+    const hintEl = document.getElementById("hint");
+    const inputEl = document.getElementById("input");
+    const charCountEl = document.getElementById("charCount");
+    const tokensEl = document.getElementById("tokens");
+    const outputEl = document.getElementById("output");
+
+    orderedKeys.forEach((k) => {
+      const opt = document.createElement("option");
+      opt.value = k;
+      opt.textContent = MODULES[k].label;
+      moduleEl.appendChild(opt);
+
+      const btn = document.createElement("button");
+      btn.textContent = MODULES[k].label.split(" (")[0];
+      btn.dataset.key = k;
+      btn.onclick = () => switchTo(k);
+      switcher.appendChild(btn);
+    });
+
+    function switchTo(key) {
+      const m = MODULES[key];
+      const d = DEMOS[key];
+      descEl.textContent = m.desc;
+      hintEl.textContent = m.hint;
+      moduleEl.value = key;
+      inputEl.value = d.input;
+      charCountEl.textContent = `${d.input.length.toLocaleString()} 字符`;
+      tokensEl.textContent = d.tokens;
+      outputEl.innerHTML = d.output;
+      [...switcher.children].forEach((b) => {
+        b.classList.toggle("active", b.dataset.key === key);
+      });
+    }
+
+    moduleEl.addEventListener("change", (e) => switchTo(e.target.value));
+
+    // start on intake
+    switchTo("intake");
+  </script>
 </body>
 </html>
