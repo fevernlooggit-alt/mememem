@@ -270,6 +270,26 @@
         desc: "对数值改动给出 Ship / Hold / Revise 建议",
         hint: "提示：提供 baseline、change_spec、scope。可选 target_metric 和 constraints。",
       },
+      incident: {
+        label: "P0/P1 事故处理 (incident)",
+        desc: "事故发生时的 25-30 项 checklist：诊断 → 缓解 → 通知 → 复盘",
+        hint: "提示：粘贴现象描述。注明 detected_at 时间。可选 current_status / affected_segment。",
+      },
+      refund: {
+        label: "退款 / 补偿决策树 (refund)",
+        desc: "单笔退款请求逐条检查 → Approve / Partial / Compensation / Deny",
+        hint: "提示：粘贴玩家原文 + purchase_info + platform。可选 usage_status / bug_context / player_history。",
+      },
+      release: {
+        label: "发版前后 Checklist (release)",
+        desc: "T-24h / T-1h / T+1h/4h/24h 检查与监控阈值 + 回滚触发条件",
+        hint: "提示：粘贴版本号 + 主要改动 + release_window + platform。",
+      },
+      escalation: {
+        label: "玩家投诉升级诊断 (escalation)",
+        desc: "工单 30 秒 triage：分类 / 优先级 / 是否人工 / 路由到哪个模块",
+        hint: "提示：粘贴玩家工单原文。可选 player_meta / related_tickets / channel。",
+      },
       wrap: {
         label: "每日汇总 (wrap)",
         desc: "把当日所有模块产出整合成一份给下一班的简报",
@@ -800,6 +820,428 @@ change_spec:
 `,
       },
 
+      incident: {
+        input: `incident_text:
+iOS 1.4.2 玩家从昨晚 22:00 起报告登录后闪退。
+工单从昨晚 18 单增至现在（早 6 点）56 单。
+影响 iPhone 12/13 + iOS 17.x，重现率 30%。
+Sentry crash 日志指向新加载器 ResourceLoader.loadAsync 的 nil dereference。
+
+detected_at: 2026-05-12 06:00 (CST)
+current_status: still firing
+affected_segment: iOS 1.4.2 / iPhone 12-13 / iOS 17.x`,
+        tokens: "tokens: in 4912 / out 1124 / cache-read 4750",
+        output: `
+<h1>Incident — iOS 1.4.2 登录闪退（iPhone 12/13 + iOS 17.x）</h1>
+<p><strong>Slug:</strong> ios-1-4-2-login-crash-incident<br>
+<strong>Detected at:</strong> 2026-05-12 06:00 (CST)<br>
+<strong>Severity:</strong> P1<br>
+<strong>Status:</strong> still firing<br>
+<strong>Affected segment:</strong> iOS 1.4.2 / iPhone 12-13 / iOS 17.x</p>
+
+<h2>One-line summary</h2>
+<p>iOS 1.4.2 新资源加载器在 iPhone 12/13 + iOS 17.x 设备上空指针崩溃，登录后 3-5 秒闪退，30% 重现率，8 小时内工单从 18 涨到 56。</p>
+
+<h2>5W check</h2>
+<ul>
+  <li><strong>What:</strong> 客户端登录后资源加载阶段崩溃（ResourceLoader.loadAsync 空指针）</li>
+  <li><strong>When:</strong> 自 2026-05-11 22:00 起（1.4.2 上架后约 6 小时），仍在持续</li>
+  <li><strong>Where:</strong> iOS 1.4.2 客户端，资源加载子系统</li>
+  <li><strong>Who:</strong> iPhone 12/13 + iOS 17.x 用户；当前已确认 56 工单，实际受影响数 unknown — 需要按 Sentry 唯一设备数测算</li>
+  <li><strong>Why:</strong> 新资源加载器的 nil dereference — 推测但未确认。需 iOS 工程师确认堆栈和触发路径。</li>
+</ul>
+
+<h2>Immediate actions (next 15 min)</h2>
+<ul>
+  <li>[ ] <strong>停止灾难扩散：</strong>在 Play Console / App Store Connect 把 1.4.2 build 的下载比例降到 0%（不能撤回已下载用户但能阻止新用户）</li>
+  <li>[ ] 通过服务端 feature flag 关闭新资源加载器，强制走旧加载器（如果有 flag）</li>
+  <li>[ ] 叫醒 iOS on-call 工程师 — 确认堆栈和热修复 ETA</li>
+  <li>[ ] 截屏保存 Sentry dashboard 当前状态（崩溃数、设备分布、版本分布）</li>
+  <li>[ ] 抓取至少 10 个 affected player ID 备查（后续补偿用）</li>
+  <li>[ ] 决策点：rollback / feature flag / hotfix / wait → 见下方决策树</li>
+</ul>
+
+<h2>Within 1 hour</h2>
+<ul>
+  <li>[ ] iOS 工程师确认根因 + 给出热修复 build ETA</li>
+  <li>[ ] 客服上线临时 bot 规则（见 botrules 模块 Proposal A1+A2）</li>
+  <li>[ ] 通知运营 + 数值组 + QA leader</li>
+  <li>[ ] 准备 in-app 公告草稿（受影响设备 + 解决进度 + 补偿承诺占位）</li>
+</ul>
+
+<h2>Within 4 hours</h2>
+<ul>
+  <li>[ ] 热修复 1.4.2.1（或 1.4.3）build 提交 App Store expedited review</li>
+  <li>[ ] 启动根因分析：1.4.1 → 1.4.2 在资源加载部分的所有 commit</li>
+  <li>[ ] 测算实际影响面（Sentry 唯一设备 ÷ iPhone 12-13 iOS 17 用户基数）</li>
+  <li>[ ] 评估补偿包并和运营对齐</li>
+</ul>
+
+<h2>Communication matrix</h2>
+<table>
+  <tr><th>Audience</th><th>Channel</th><th>Message gist</th><th>When</th><th>Status</th></tr>
+  <tr><td>iOS on-call</td><td>电话 + Slack</td><td>"iOS 1.4.2 P1 闪退，需要立即上线"</td><td>now</td><td>pending</td></tr>
+  <tr><td>运营 leader</td><td>Slack #ops</td><td>"P1 事故 + 补偿决策待定"</td><td>30min 内</td><td>pending</td></tr>
+  <tr><td>客服班组</td><td>Slack #cs</td><td>"已有 bot 规则上线 + 转人工模板"</td><td>30min 内</td><td>pending</td></tr>
+  <tr><td>受影响玩家</td><td>in-app 公告 + 邮件</td><td>"已知问题，热修复中，补偿稍后"</td><td>2h 内</td><td>pending</td></tr>
+  <tr><td>内部 #incidents</td><td>Slack</td><td>持续状态更新</td><td>每 30 分钟</td><td>pending</td></tr>
+</table>
+
+<h2>Mitigation options</h2>
+<table>
+  <tr><th>Option</th><th>Trigger to choose</th><th>Risk</th><th>Time-to-effect</th></tr>
+  <tr><td>Feature flag 关闭新加载器</td><td>如果 flag 已存在</td><td>旧加载器是否能完整服务 1.4.2 的资源 — 需验证</td><td>~5 分钟</td></tr>
+  <tr><td>Play Console 限制下载到 0%</td><td>立即执行（不影响已下载用户）</td><td>无 — 纯防御性</td><td>~15 分钟</td></tr>
+  <tr><td>提交热修复 1.4.2.1 expedited review</td><td>正在并行进行</td><td>Apple review 不可控 (12-48h)</td><td>12-48 小时</td></tr>
+  <tr><td>Rollback 到 1.4.1（要求玩家降级）</td><td>如果 flag 不存在 + 热修复 ETA > 24h</td><td>玩家不会主动降级，效果有限</td><td>实际几乎无效</td></tr>
+  <tr><td>Wait + monitor</td><td>仅在工单稳定不增长时</td><td>持续流失 + 退款 + 公关风险</td><td>n/a</td></tr>
+</table>
+<p><strong>Recommended path:</strong> Feature flag 关闭新加载器（如果存在）+ Play Console 限制下载 + 并行 expedited review。这是同时止血和长期修复的组合。</p>
+
+<h2>Player impact estimate</h2>
+<ul>
+  <li><strong>Bracket:</strong> ×100 ~ ×1000（unverified — 56 工单 × 假设报告率 1-5% → 1100 - 5600 实际受影响）</li>
+  <li><strong>Evidence:</strong> 工单数 56；Sentry 唯一设备数 not measured yet — 应优先获取</li>
+  <li><strong>Revenue impact:</strong> 部分玩家已申请退款，金额 not stated</li>
+</ul>
+
+<h2>Compensation evaluation</h2>
+<ul>
+  <li><strong>Trigger met?</strong> YES — 玩家无法登录超过 1 小时；包含付费用户</li>
+  <li><strong>If yes:</strong> 草案 — 全部受影响 iOS 1.4.2 设备主动发放 2 天月卡延长 + 500 钻石。<strong>需运营批准。</strong></li>
+</ul>
+
+<h2>Post-mortem questions (capture for later)</h2>
+<ol>
+  <li>新资源加载器为什么没在 iPhone 12/13 iOS 17 上 QA 覆盖到？</li>
+  <li>1.4.2 的 staged rollout 比例为什么是 100% 而不是先 5%？</li>
+  <li>Sentry 自动告警为什么没在崩溃曲线首次抬升时触发？</li>
+  <li>这是个 nil 检查失败 — 是个孤立点修，还是新加载器架构本身需要审查？</li>
+  <li>能否在 release 模块的 T+1h 监控里加上"按设备型号 × OS"维度的崩溃率？</li>
+</ol>
+
+<h2>Open questions / unknowns</h2>
+<ul>
+  <li>1.4.2 的资源加载是否有 feature flag？谁知道？</li>
+  <li>受影响玩家中付费用户占比？</li>
+  <li>Sentry 显示的实际唯一设备数 — 现在能拿到吗？</li>
+  <li>Apple expedited review 上次走是什么时候，有联系人吗？</li>
+</ul>
+
+<h2>Evidence to preserve</h2>
+<ul>
+  <li>[ ] Sentry crash logs，1.4.2 release 起到现在</li>
+  <li>[ ] Server error logs（资源加载请求侧）</li>
+  <li>[ ] 至少 10 个受影响玩家 ID（一个 sample）</li>
+  <li>[ ] 一台 iPhone 13 iOS 17.x 的复现录屏</li>
+  <li>[ ] 当前 App Store / Play Console 下载量曲线截屏</li>
+</ul>
+`,
+      },
+
+      refund: {
+        input: `request_text:
+我是 iPhone 13 + iOS 17.4 用户，5/10 买了月卡。
+但是从 5/11 开始游戏就一直闪退，根本登不进去。
+这两天我什么都没玩到，我不要月卡了，给我退款！
+
+purchase_info: SKU monthly_premium, ¥60 CNY, 2026-05-10
+platform: ios
+order_ref: MX9YH72P (App Store)
+usage_status: 30 天月卡，已激活 2 天（5/10-5/11），剩余 28 天未使用
+bug_context: 已知 iOS 1.4.2 闪退 bug 影响 iPhone 12/13 + iOS 17.x
+player_history: first-time refund, account age 8 months`,
+        tokens: "tokens: in 5034 / out 698 / cache-read 4750",
+        output: `
+<h1>Refund Decision — Anonymous — monthly_premium</h1>
+<p><strong>Slug:</strong> ios-monthly-1-4-2-crash-refund<br>
+<strong>Platform:</strong> ios<br>
+<strong>Order ref:</strong> MX9YH72P<br>
+<strong>Amount:</strong> ¥60 CNY<br>
+<strong>Purchased:</strong> 2026-05-10<br>
+<strong>Decision:</strong> <span class="ship-badge badge-ship">COMPENSATION ONLY</span> + 引导 Apple 申诉</p>
+
+<h2>Player request (restated)</h2>
+<p>玩家要求全额退款 ¥60 月卡，因为 1.4.2 闪退导致购买后无法使用。</p>
+
+<h2>Decision tree trace</h2>
+<table>
+  <tr><th>Check</th><th>Result</th><th>Rule</th></tr>
+  <tr><td>Platform-policy window</td><td>within</td><td>iOS 90 天窗口，购买后第 2 天 — 在窗口内</td></tr>
+  <tr><td>Usage status</td><td>partial（30 天月卡用了 2 天，28 天未用）</td><td>按比例补偿适用</td></tr>
+  <tr><td>Bug attribution</td><td>game-bug — 已确认</td><td>iOS 1.4.2 闪退是已知问题，玩家无过错</td></tr>
+  <tr><td>History</td><td>first-time</td><td>无滥用风险</td></tr>
+  <tr><td>Final branch</td><td>game-bug × first-time × ios-platform</td><td>CS 不直接退款；引导 Apple 申诉 + 主动给等值游戏内补偿</td></tr>
+</table>
+
+<h2>Player reply draft</h2>
+<blockquote>您好，<br><br>非常抱歉给您带来了不便。1.4.2 在 iPhone 12/13 + iOS 17 上的登录闪退是我们已经确认的问题，热修复版本正在 App Store 加速审核中，预计 24-48 小时内可下载。<br><br>关于您的月卡退款：<br>• <strong>App Store 退款</strong>需要您本人通过 Apple 申请：<a href="https://reportaproblem.apple.com">reportaproblem.apple.com</a> → 找到月卡订单 → "申请退款" → 选 "未使用 / 无法使用"。Apple 通常 1-2 个工作日内回复。<br>• <strong>同时</strong>，我们已为您额外发放 <strong>2 天月卡延长（5/13-5/14 期间的实际损失）+ 500 钻石</strong>作为道歉，会在更新到热修复版本后通过游戏内邮件送达。<br><br>如果 Apple 批准退款，月卡服务会自动取消；如果 Apple 不批准，我们会另外按比例给您 28 天 ÷ 30 天 = ¥56 的游戏内等值钻石包补偿。<br><br>再次抱歉，并感谢您的耐心。</blockquote>
+
+<h2>Internal actions</h2>
+<ul>
+  <li>[ ] CRM 标记：tag <code>refund-ios-1.4.2-crash</code> + <code>compensation-only</code> + <code>awaiting-apple-decision</code></li>
+  <li>[ ] In-game mail 模板 <code>T-COMP-iOS-1.4.2</code>：2 天月卡延长 + 500 钻石（等更新到热修复后发，发不到旧版本）</li>
+  <li>[ ] 加入 watchlist：若 Apple 决策回来是 deny，再触发"剩余 28 天等值钻石补偿"（约 700 钻石）</li>
+  <li>[ ] 创建关联 incident: ios-1-4-2-login-crash-incident（已存在则关联）</li>
+  <li>[ ] 不需要创建 upstream-bug intake（已有 ios-1-4-2-login-crash）</li>
+</ul>
+
+<h2>Platform-specific notes</h2>
+<ul>
+  <li><strong>iOS:</strong> CS 无法直接退款 ¥60。回复必须引导玩家到 reportaproblem.apple.com，并平行给游戏内补偿。</li>
+  <li>Apple 申诉对玩家来说是 self-service，CS 不能代办。</li>
+  <li>如果 Apple 批准，订阅会被取消 → 月卡服务停止 + 游戏内补偿仍生效（不重复扣除）。</li>
+</ul>
+
+<h2>Risk flags</h2>
+<ul>
+  <li>[ ] Possible abuse pattern — <strong>NO</strong>（first-time，8 个月账号）</li>
+  <li>[ ] Possible chargeback risk — <strong>LOW</strong>（已主动补偿 + 引导正规申诉，玩家走信用卡 dispute 的可能性低）</li>
+  <li>[x] 数据风险已自动覆盖 — Apple 决策待回，已配 fallback 补偿</li>
+</ul>
+
+<h2>Open questions for the operator</h2>
+<ul>
+  <li>2 天延长 + 500 钻石的补偿包是否需要个例审批？还是走通用 1.4.2 闪退批量补偿模板？</li>
+  <li>如果 Apple 长时间不回（&gt; 7 天），是否主动联系玩家给最终钻石补偿，还是等玩家追问？</li>
+</ul>
+`,
+      },
+
+      release: {
+        input: `release_spec: 1.4.3 hotfix
+- 修复 iOS 1.4.2 iPhone 12/13 + iOS 17 登录闪退
+- 每日任务金币 200 → 300（待 numbers 模块决定是否 ship）
+- Aelaris Q 伤害下调（数值待定）
+- 新 PvP 地图 Stormwood
+- 登录奖励日历重置（修复 5/1 漏领）
+
+release_window: 2026-05-15 10:00 GMT+8
+platform: both (ios + android)
+gradual_rollout:
+- iOS 100% (hotfix urgency, App Store approval needed)
+- Android 5% → 20% → 100% over 24h
+
+baseline_metrics (last 7d avg):
+- crash rate: 0.4% sessions
+- login success: 98.2%
+- IAP success: 96.5%
+- ticket volume: 12 / hour`,
+        tokens: "tokens: in 5189 / out 1287 / cache-read 4750",
+        output: `
+<h1>Release Plan — 1.4.3 hotfix — 2026-05-15 10:00 GMT+8</h1>
+<p><strong>Slug:</strong> release-1-4-3-hotfix<br>
+<strong>Version:</strong> 1.4.3<br>
+<strong>Platform:</strong> both (ios + android)<br>
+<strong>Go-live window:</strong> 2026-05-15 10:00 GMT+8<br>
+<strong>Gradual rollout:</strong> iOS 100%（hotfix）+ Android 5% → 20% → 100% over 24h</p>
+
+<h2>Scope (risky items flagged 🚩)</h2>
+<ul>
+  <li>修复 iOS 1.4.2 iPhone 12/13 + iOS 17 登录闪退 🚩（核心 hotfix，触碰资源加载器）</li>
+  <li>每日任务金币 200 → 300 🚩（经济影响，numbers 模块 推荐 Hold — 需 ops 决策）</li>
+  <li>Aelaris Q 伤害下调（数值待定 — <strong>阻塞，需数值组在 T-24h 前给数字</strong>）</li>
+  <li>新 PvP 地图 Stormwood（玩家可见但低风险）</li>
+  <li>登录奖励日历重置 🚩（动到玩家账户数据，需备份）</li>
+</ul>
+
+<h2>T-24h checklist</h2>
+<ul>
+  <li>[ ] iOS build 已经签名 + TestFlight 测试通过</li>
+  <li>[ ] Android build 已签名 + Play Console internal track 验证</li>
+  <li>[ ] App Store expedited review 已提交（hotfix 加急通道）</li>
+  <li>[ ] Sentry / crash 报告 SDK 配置匹配生产</li>
+  <li>[ ] 🚩 资源加载器 feature flag 在生产已就绪（如果新加载器再出问题可以关）</li>
+  <li>[ ] 🚩 每日金币改动的 server-side flag 已就绪（可以 1 键回退到 200）</li>
+  <li>[ ] 🚩 登录日历重置脚本在 prod-like 数据上跑通，无误差</li>
+  <li>[ ] CS FAQ 更新完成 — botrules 模块的 5 条新规则已部署到 Intercom</li>
+  <li>[ ] On-call 排班确认（主：J.S.；备：A.；电话已确认）</li>
+  <li>[ ] Rollback 流程文档已存到 1Password vault + 手机可访问</li>
+  <li>[ ] 1.4.4 hotfix 分支已从 1.4.3 main 切出，待命</li>
+  <li>[ ] Release notes 中英俄日 4 语已 finalized（注意：俄语本地化新地图仍有缺失 — 公告里加临时说明）</li>
+</ul>
+
+<h2>T-4h checklist</h2>
+<ul>
+  <li>[ ] Sentry dashboard / Grafana / Play Console / App Store Connect 全部打开</li>
+  <li>[ ] Slack #incidents 频道已 pin 所有相关 doc 链接</li>
+  <li>[ ] Comm 模板 (4 份，见下) 已起草</li>
+  <li>[ ] Rollback 演练 — 30 天内做过吗？<strong>需要确认</strong>，否则今天补一次 dry-run</li>
+  <li>[ ] No conflicting events ±2h — 无 promo / 营销推送冲突</li>
+</ul>
+
+<h2>T-1h go/no-go</h2>
+<ul>
+  <li>[ ] Baseline snapshot 已记录（见下表）</li>
+  <li>[ ] No active P0/P1 — 当前 P1: ios-1-4-2-login-crash 状态 = 即将被本次 release 修复 ✓</li>
+  <li>[ ] iOS on-call 确认就绪</li>
+  <li>[ ] CS on-call 确认就绪</li>
+  <li>[ ] <strong>Operator 确认就绪（人工最终 gate）</strong></li>
+</ul>
+
+<h3>Baseline snapshot (last 7d avg)</h3>
+<table>
+  <tr><th>Metric</th><th>Value</th><th>Source</th></tr>
+  <tr><td>Crash rate (sessions)</td><td>0.4%</td><td>Sentry overview</td></tr>
+  <tr><td>Login success rate</td><td>98.2%</td><td>Grafana auth-svc</td></tr>
+  <tr><td>IAP success rate</td><td>96.5%</td><td>Stripe + Play Console + ASC join</td></tr>
+  <tr><td>Ticket volume / hour</td><td>12</td><td>Intercom</td></tr>
+</table>
+
+<h2>T+0 → T+1h monitoring</h2>
+<p>Cadence: 每 10 分钟。所有阈值都基于上表 baseline。</p>
+<table>
+  <tr><th>Metric</th><th>Warn</th><th>Alert</th><th>Status</th></tr>
+  <tr><td>Crash rate (sessions)</td><td>&gt;0.7%（baseline + 0.3pp）</td><td>&gt;1.4%（baseline + 1pp）</td><td>pending</td></tr>
+  <tr><td>Login success</td><td>&lt;97.2%（baseline - 1pp）</td><td>&lt;95.2%（baseline - 3pp）</td><td>pending</td></tr>
+  <tr><td>IAP success</td><td>&lt;94.5%（baseline - 2pp）</td><td>&lt;91.5%（baseline - 5pp）</td><td>pending</td></tr>
+  <tr><td>Ticket volume / h</td><td>&gt;18（×1.5）</td><td>&gt;36（×3）</td><td>pending</td></tr>
+  <tr><td>🚩 iPhone 12/13 iOS 17 崩溃率</td><td>&gt;0.5%</td><td>&gt;1.0%</td><td>pending（关键，本次 hotfix 主要修复目标）</td></tr>
+  <tr><td>🚩 登录日历奖励发放成功率</td><td>&lt;99%</td><td>&lt;97%</td><td>pending（账户改动监控）</td></tr>
+</table>
+
+<h2>T+1h → T+4h monitoring</h2>
+<p>Cadence: 每 30 分钟。同上 plus：</p>
+<table>
+  <tr><th>Metric</th><th>Warn</th><th>Alert</th><th>Notes</th></tr>
+  <tr><td>平均 session 长度</td><td>&lt;baseline - 10%</td><td>&lt;baseline - 20%</td><td>retention 代理指标</td></tr>
+  <tr><td>退款 / 申诉新增数</td><td>&gt;baseline × 2</td><td>&gt;baseline × 5</td><td>关联 IAP / 月卡问题</td></tr>
+  <tr><td>D1 cohort 启动</td><td>n/a</td><td>—</td><td>追踪到 T+24h</td></tr>
+</table>
+
+<h2>T+24h checklist</h2>
+<ul>
+  <li>[ ] 全部指标回到 baseline ±1pp</li>
+  <li>[ ] 无退款 / chargeback 异常激增</li>
+  <li>[ ] Android 已扩到 100% 还是滚动中？决策：继续扩 / 维持 / 回滚</li>
+  <li>[ ] 重新 snapshot baseline 在新 rollout % 下</li>
+  <li>[ ] 安排 T+72h 复盘会</li>
+</ul>
+
+<h2>Rollback triggers (hard rules)</h2>
+<p>满足以下任一条件立刻 rollback:</p>
+<ul>
+  <li>[ ] Crash rate &gt; 1.4% 持续 &gt; 15 分钟</li>
+  <li>[ ] Login success &lt; 95.2% 持续 &gt; 10 分钟</li>
+  <li>[ ] IAP success &lt; 91.5% 持续 &gt; 10 分钟</li>
+  <li>[ ] Ticket volume &gt; 36/h 持续 &gt; 30 分钟</li>
+  <li>[ ] 任何已确认的 data-loss 报告（1 起即触发）</li>
+  <li>[ ] 🚩 iPhone 12/13 iOS 17 崩溃率没有降下来（hotfix 失效）</li>
+  <li>[ ] 🚩 登录奖励日历重置导致玩家奖励被错误扣除（任何 1 起确认）</li>
+</ul>
+<p><strong>Rollback procedure:</strong> 1Password vault → CS / RELEASES → "1.4.3 rollback runbook"。Android: Play Console halt rollout + 上一个版本扩量。iOS: 不能直接 rollback build，只能让 Apple takedown 或推 1.4.4 fix（紧急情况下 expedited review）。</p>
+
+<h2>Pre-staged comm templates</h2>
+<ul>
+  <li><strong>Maintenance / known issue notice</strong>: "1.4.3 已上线，包含 iOS 闪退修复和 5 项改动，详见 release notes。"</li>
+  <li><strong>Apology + ETA</strong>: "我们注意到部分玩家报告 X 问题，工程团队正在排查，预计 N 小时内更新。感谢您的耐心。"</li>
+  <li><strong>Rollback notice</strong>: "由于 X 原因，我们已暂时回退本次更新。所有玩家进度安全，请稍后重新打开游戏。"</li>
+  <li><strong>All-clear</strong>: "1.4.3 已完成全量发布，所有指标稳定。"</li>
+</ul>
+
+<h2>Top 3 risks for this release</h2>
+<ol>
+  <li>🚩 <strong>iOS hotfix 没修对</strong> — likelihood: low-med — mitigation: feature flag 关闭新加载器 + iPhone 12/13 iOS 17 专项监控</li>
+  <li>🚩 <strong>登录日历重置脚本误扣已领奖励</strong> — likelihood: low — mitigation: 重置前数据库 snapshot 一份 + 任何 1 起报告即 rollback</li>
+  <li>🚩 <strong>每日金币 +50% 导致 IAP 1000-金币包销量骤降</strong> — likelihood: med — mitigation: numbers 模块推荐 Hold，建议用 server flag 把这条改动延后到独立 A/B</li>
+</ol>
+
+<h2>Open questions for the operator</h2>
+<ul>
+  <li>Aelaris Q 削弱数值什么时候能给？T-24h 前必须有数字否则该项移出本次 release。</li>
+  <li>每日金币 +50% 是否同意按 numbers 推荐 Hold + 延后？需运营今天回复。</li>
+  <li>俄语本地化新地图缺失 — 接受先上线 + 公告说明，还是阻塞 release 等本地化补齐？</li>
+  <li>Android 扩量节奏 5% → 20% → 100% 的间隔是 4h / 8h 还是更激进？</li>
+</ul>
+`,
+      },
+
+      escalation: {
+        input: `complaint_text:
+你们这个游戏简直就是坑钱！我充了 6000 元钱的钻石全部都消失了！
+我已经发了微博曝光，准备打 12315 投诉，再不解决我直接起诉！
+
+channel: in-app ticket
+player_meta: VIP 7, total spend ¥6800 (lifetime), account age 14 months, region: CN
+related_tickets: 0 (last 24h, no similar phrasing)`,
+        tokens: "tokens: in 4886 / out 723 / cache-read 4750",
+        output: `
+<h1>Escalation Triage — VIP7 玩家声称 6000 元钻石全部丢失 + 已发微博 + 威胁 12315/起诉</h1>
+<p><strong>Slug:</strong> vip7-data-loss-claim-legal-threat<br>
+<strong>Channel:</strong> in-app ticket<br>
+<strong>Received:</strong> 2026-05-12 11:42<br>
+<strong>Content type:</strong> data-loss + billing-dispute (secondary: press-legal)<br>
+<strong>Urgency:</strong> <span class="ship-badge badge-revise">P0</span><br>
+<strong>Human needed now?</strong> <span class="ship-badge badge-revise">YES — 法律语言 + 公开曝光风险 + VIP7 高付费 + 声称数据损失</span></p>
+
+<h2>One-line summary</h2>
+<p>付费 ¥6800 的 VIP7 玩家声称账户钻石全部丢失，已在微博公开，并威胁 12315 投诉 + 起诉。无类似工单 — 单点事件，但风险等级高。</p>
+
+<h2>Emotion / risk read</h2>
+<ul>
+  <li><strong>情绪:</strong> hostile（"坑钱"等措辞）</li>
+  <li><strong>Flags:</strong>
+    <ul>
+      <li>🔴 <strong>public-exposure-risk</strong> — 已发微博</li>
+      <li>🔴 <strong>legal-language</strong> — 明确提到 12315 和起诉</li>
+      <li>🔴 <strong>billing-dispute / chargeback signal</strong> — 6000 元充值规模</li>
+      <li>🔴 <strong>data-loss claim</strong> — 需要验证真伪</li>
+      <li>vulnerable-user: 无明显信号</li>
+    </ul>
+  </li>
+</ul>
+
+<h2>Routing</h2>
+<ul>
+  <li><strong>Primary module:</strong> <code>accounts</code>（先验证账户状态 / 钻石余额 / 充值记录 — 不发钻石回去，先查证）</li>
+  <li><strong>Secondary:</strong> <code>refund</code>（如果验证后确认有数据丢失或扣费异常）</li>
+  <li><strong>Why:</strong> 数据损失声明必须先在后台核对账户日志、充值流水、最近 90 天扣费记录。在确认前不做任何承诺。</li>
+  <li><strong>Cluster check:</strong> related_tickets = 0，不是事故 — 单点处理。但持续监控未来 1 小时类似工单激增（如果出现 → 立即转 incident 模块）。</li>
+</ul>
+
+<h2>First reply draft (player's language)</h2>
+<blockquote>您好，<br><br>非常抱歉给您带来了焦虑。我已经看到您的工单，作为 VIP 玩家您的问题会被立刻处理。<br><br>为了帮您查清钻石去向，我需要您提供以下信息（任何一项都可以加快进度）：<br>1. 您发现钻石消失的具体时间（年/月/日 + 大致时段）<br>2. 您当时正在做什么操作（充值后 / 在某活动 / 切换账号 / 其它）<br>3. 如果方便，请截屏一份钻石余额页面（系统会同步显示余额变更记录）<br><br>我会同步在后台调取您账户最近 30 天的钻石进出明细和充值流水，预计 <strong>2 小时内</strong>回复您具体情况。<br><br>请放心，您的所有充值记录我们都有完整存档；如果确实有任何系统问题，我们会一并核实并跟进。<br><br>稍后联系。</blockquote>
+
+<h2>Internal handling</h2>
+<ul>
+  <li>[ ] <strong>立即升级到人工 leader 处理</strong> — 不交给一线客服</li>
+  <li>[ ] CRM 标记：<code>P0-legal-threat</code> + <code>public-exposure</code> + <code>vip7-high-spend</code> + <code>data-loss-claim</code></li>
+  <li>[ ] 后台立即查：账户最近 90 天钻石流水 + 充值流水 + 登录设备记录 + 是否被风控限制</li>
+  <li>[ ] 截图保存玩家微博发帖（取证用，包括帖子时间、内容、转发量、评论）</li>
+  <li>[ ] 通知运营 leader + 公关 standby（如果微博发酵）</li>
+  <li>[ ] 2 小时内必须给玩家具体回复（即使数据还没查完，也回复一个明确的下一步时间）</li>
+  <li>[ ] 不要先发钻石"安抚" — 在没核实事实前任何赠送会让法律 / 公关复杂化</li>
+</ul>
+
+<h2>Escalation triggers (auto-promote if any of these happen)</h2>
+<ul>
+  <li>[ ] 玩家微博转发 &gt; 100 / 评论 &gt; 50 → 通知公关 + 准备公开声明</li>
+  <li>[ ] 1 小时内出现 2+ 类似 VIP 数据丢失工单 → 立即跳转 <code>incident</code> 模块（系统性问题）</li>
+  <li>[ ] 玩家发起 12315 实际投诉（接到通知）→ 走法务流程，CS 仅做记录</li>
+  <li>[ ] 玩家发起信用卡 chargeback → 风控 + 法务介入</li>
+  <li>[ ] 后台确认账户被入侵 / 被盗号 → 走 accounts 模块的盗号专项 + 安全团队</li>
+  <li>[ ] 后台确认充值流水或扣费异常（系统侧 bug）→ 立即创建 incident</li>
+  <li>[ ] 2 小时内没回复玩家 → 自动升级到运营 director</li>
+</ul>
+
+<h2>Risk flags</h2>
+<ul>
+  <li>[x] Possible chargeback risk — VIP7 高额充值 + 法律语言 + 公开曝光</li>
+  <li>[x] Possible PR risk — 已发微博，需监控传播</li>
+  <li>[ ] Possible coordinated complaint — 暂无信号（related_tickets = 0）</li>
+  <li>[ ] Possible fraud / abuse signal — 暂无（VIP7 + 14 个月账号年龄，不像恶意账户）</li>
+</ul>
+
+<h2>Open questions for the operator</h2>
+<ul>
+  <li>玩家账号 ID 是多少？（CRM 链接已有但工单原文未粘）</li>
+  <li>当前公关 standby 联系人是谁？工单原文未指明 escalation 路径。</li>
+  <li>是否要主动给玩家私信留我们的法务/公关联系方式？还是只通过工单回复？</li>
+  <li>如果后台核查后确认确实有钻石异常丢失，补偿是直接补回 + 额外赠送，还是只补原值？需运营提前预设授权额度。</li>
+</ul>
+`,
+      },
+
       wrap: {
         input: `（自动从 /outputs/2026-05-12/INDEX.md 读取，演示场景下手动粘贴当日产出列表）
 
@@ -807,75 +1249,106 @@ intake: ios-1-4-2-login-crash (P1)
 gameteam: patch-1-4-3-notes (8 项变更)
 botrules: patch-1-4-3-bot-rules (5 新增 / 2 编辑)
 accounts: google-play (2026-05-12 baseline)
-numbers: daily-quest-gold-200-to-300 (Hold)`,
-        tokens: "tokens: in 4892 / out 538 / cache-read 4750",
+numbers: daily-quest-gold-200-to-300 (Hold)
+incident: ios-1-4-2-login-crash-incident (P1, still firing → flagged for hotfix)
+refund: ios-monthly-1-4-2-crash-refund (compensation only)
+release: release-1-4-3-hotfix (planned 2026-05-15)
+escalation: vip7-data-loss-claim-legal-threat (P0, 已升级 leader)`,
+        tokens: "tokens: in 5421 / out 942 / cache-read 4750",
         output: `
 <h1>CS Intel Wrap — 2026-05-12</h1>
 
 <h2>Today at a glance</h2>
 <ul>
-  <li>Artifacts produced: <strong>5</strong></li>
-  <li>P0 / P1 intakes: <strong>1</strong> (1 个 P1)</li>
-  <li>Bot rule proposals: <strong>7</strong> (3 P0 / 2 P1 / 1 P2 / 1 edit)</li>
+  <li>Artifacts produced: <strong>9</strong></li>
+  <li>P0 / P1 events today: <strong>3</strong>（1 P0 escalation + 1 P1 intake/incident pair）</li>
+  <li>Bot rule proposals: <strong>7</strong>（3 P0 / 2 P1 / 1 P2 / 1 edit）</li>
+  <li>Releases planned: <strong>1</strong>（1.4.3 hotfix 2026-05-15）</li>
+  <li>Refund decisions: <strong>1</strong>（compensation-only）</li>
   <li>Modules skipped today: <em>none</em></li>
 </ul>
 
 <h2>Per-module headline</h2>
 
+<h3>Escalation</h3>
+<ul>
+  <li><strong>vip7-data-loss-claim-legal-threat (P0):</strong> VIP7 ¥6800 玩家声称钻石全部丢失 + 微博公开 + 12315/起诉威胁。已升级 leader，后台正在查充值流水。<strong>2h 内必须回复。</strong></li>
+</ul>
+
 <h3>Intake</h3>
 <ul>
-  <li><strong>ios-1-4-2-login-crash (P1):</strong> iOS 1.4.2 在 iPhone 12/13 + iOS 17.x 上登录后闪退，重现率 ~30%，已有 50+ 工单和退款申请，1.4.3 已修复。</li>
+  <li><strong>ios-1-4-2-login-crash (P1):</strong> iOS 1.4.2 iPhone 12/13 + iOS 17.x 登录后闪退，工单从 18 增至 56。</li>
+</ul>
+
+<h3>Incident</h3>
+<ul>
+  <li><strong>ios-1-4-2-login-crash-incident (P1, still firing):</strong> 推荐路径 = feature flag 关闭新加载器 + Play Console 限制下载 0% + expedited review。补偿触发条件已满足，草案 2 天月卡 + 500 钻石待运营批准。</li>
 </ul>
 
 <h3>Game team analysis</h3>
 <ul>
-  <li><strong>patch-1-4-3-notes:</strong> 8 项改动，5 项玩家可见。最值得关注：(1) Aelaris Q 削弱数值未给，(2) 每日金币 +50%（需走 numbers 验证），(3) 登录日历重置与旧 FAQ 冲突。</li>
+  <li><strong>patch-1-4-3-notes:</strong> 8 项改动，5 项玩家可见。Aelaris Q 削弱数值未给（阻塞）、每日金币 +50%（走 numbers）、登录日历重置（与旧 FAQ 冲突）。</li>
 </ul>
 
 <h3>Bot rule proposals</h3>
 <ul>
-  <li><strong>patch-1-4-3-bot-rules:</strong> 3 P0（含 1 个 edit）+ 2 P1 + 1 P2。所有 P0 在下班前可上线。两个 open decisions 阻塞：1.4.2 闪退补偿政策 + Aelaris 削弱具体数值。</li>
+  <li><strong>patch-1-4-3-bot-rules:</strong> 3 P0（含 1 edit）+ 2 P1 + 1 P2。所有 P0 今日下班前可上线。两个 open decisions 阻塞。</li>
+</ul>
+
+<h3>Refund</h3>
+<ul>
+  <li><strong>ios-monthly-1-4-2-crash-refund:</strong> <span class="ship-badge badge-ship">Compensation Only</span> — iOS 无法直接退款，引导 Apple 申诉 + 2 天月卡延长 + 500 钻石。已配置 Apple deny 回来的 fallback。</li>
+</ul>
+
+<h3>Release</h3>
+<ul>
+  <li><strong>release-1-4-3-hotfix:</strong> 2026-05-15 10:00 GMT+8。3 个 🚩 风险项（资源加载器 / 登录日历重置 / 金币 +50%）。完整 T-24h / T-1h / T+1h-4h-24h checklist + 7 条 rollback 触发。两个阻塞：Aelaris 数值 + 金币 ship/hold 决策。</li>
 </ul>
 
 <h3>Account audits</h3>
 <ul>
-  <li><strong>google-play (baseline):</strong> Service account key 已超过 14 个月未轮换，<strong>建议立即轮换</strong>；一位停用半年的 tester 仍有权限；隐私政策需复查（Sentry SDK 接入）。</li>
+  <li><strong>google-play (baseline):</strong> Service account key 已超过 14 个月未轮换。一位 tester 半年未活跃但权限保留。隐私政策需复查（Sentry SDK 接入后）。</li>
 </ul>
 
 <h3>Numbers tests</h3>
 <ul>
-  <li><strong>daily-quest-gold-200-to-300:</strong> <span class="ship-badge badge-hold">Hold</span> — 建议先 A/B 1 周验证对 IAP 1000-金币包销量的影响（约束 "下降不超过 5%" 无法 ship 前验证）。</li>
+  <li><strong>daily-quest-gold-200-to-300:</strong> <span class="ship-badge badge-hold">Hold</span> — 先 A/B 1 周验证 IAP 1000-金币包销量约束。</li>
 </ul>
 
 <h2>Cross-module checks</h2>
 <ul>
-  <li>[x] Every P0/P1 intake has a bot rule proposal: <strong>yes</strong> — ios-1-4-2-login-crash 已被 patch-1-4-3-bot-rules 的 Proposal A1 (edit) + A2 (add) 覆盖。</li>
-  <li>[x] Every player-facing game-team item has a bot rule: <strong>yes</strong> — 5 个 top items 都在 botrules 提案中（A1/A2 闪退/补偿、A3 登录日历、B1 金币、B2 Aelaris、C1 Stormwood）。</li>
-  <li>[ ] Every shipped numbers change has downstream coverage: <strong>n/a</strong> — daily-quest-gold 推荐 Hold，未 ship，无需 downstream。</li>
+  <li>[x] Every P0/P1 intake has a bot rule proposal: <strong>yes</strong> — ios-1-4-2-login-crash 已被 botrules A1 (edit) + A2 (add) 覆盖。</li>
+  <li>[x] Every P0/P1 event has an incident artifact: <strong>yes</strong> — intake 已配对 incident artifact；escalation 自身就是 P0 入口。</li>
+  <li>[x] Every player-facing game-team item has a bot rule: <strong>yes</strong> — 5 个 top items 全在 botrules 提案中。</li>
+  <li>[x] Refund decision has an upstream incident reference: <strong>yes</strong> — refund artifact 已关联 incident slug。</li>
+  <li>[x] Release plan covers all 🚩 risky items with monitoring metric: <strong>yes</strong> — 资源加载器、登录日历重置、金币改动都有专项监控行。</li>
+  <li>[ ] Every shipped numbers change has downstream coverage: <strong>n/a</strong> — numbers 推荐 Hold，无 ship，无需 downstream。</li>
 </ul>
 
 <h2>Open questions for the operator</h2>
 <ol>
-  <li><strong>1.4.2 闪退是否给统一补偿？</strong> — from patch-1-4-3-bot-rules (Proposal A2 阻塞)</li>
-  <li><strong>Aelaris Q 削弱的具体数值什么时候能公开？</strong> — from patch-1-4-3-bot-rules (Proposal B2 阻塞)</li>
-  <li><strong>每日金币 +50% 改动是否同意走 A/B 而不是直接 ship？</strong> — from daily-quest-gold-200-to-300</li>
-  <li><strong>Service account key 立即轮换的窗口选什么时候？</strong> — from google-play 审计</li>
+  <li><strong>VIP7 ¥6800 玩家声明的钻石丢失 — 后台核查结果什么时候到？</strong> 2h 内必须回复，否则自动升级 director。— from <code>vip7-data-loss-claim-legal-threat</code></li>
+  <li><strong>1.4.2 闪退是否给统一补偿？</strong> 补偿包草案：2 天月卡 + 500 钻石。— from <code>incident</code> + <code>botrules</code> + <code>refund</code>（三个 artifact 都被这个决定阻塞）</li>
+  <li><strong>Aelaris Q 削弱的具体数值什么时候能公开？</strong> 阻塞 botrules B2 和 release T-24h 决策。— from <code>botrules</code> + <code>release</code></li>
+  <li><strong>每日金币 +50% 改动是否同意按 numbers 推荐 Hold + 延后 A/B？</strong>— from <code>numbers</code> + <code>release</code></li>
+  <li><strong>Service account key 立即轮换的窗口选什么时候？</strong>— from <code>accounts</code></li>
+  <li><strong>1.4.3 hotfix 的俄语本地化新地图缺失 — 接受先上线还是阻塞 release？</strong>— from <code>release</code></li>
 </ol>
 
 <h2>Top 3 for tomorrow</h2>
 <ol>
-  <li><strong>上线 3 个 P0 bot 规则</strong>（A1 edit、A2 闪退补偿转人工、A3 登录日历）— 客服 shift 一开始就能减少重复工单。</li>
-  <li><strong>轮换 Google Play service account key 并回收离职 tester 权限</strong> — 已经超过审计窗口 14 个月，是 audit 出来的最高风险项。</li>
-  <li><strong>把 numbers 报告交给数值组，确认是否同意 Hold + A/B</strong> — 决定后才能解锁 botrules 里的 B1 金币咨询的最终文案。</li>
+  <li><strong>把 VIP7 玩家工单跟到底</strong>（核查 → 回复 → 必要时补偿）。今天已经有微博公开，明天如果失控就成公关事件。</li>
+  <li><strong>批准 1.4.2 闪退批量补偿包</strong>（2 天月卡 + 500 钻石）— 决策后才能解锁 3 个 artifact 的下一步执行。</li>
+  <li><strong>release-1-4-3 进入 T-72h 阶段</strong>，把 4 个阻塞问题（Aelaris 数值 / 金币 ship 决定 / 俄语 / Android rollout 节奏）今天全部 close 掉，否则 5/15 不能 ship。</li>
 </ol>
 
 <h2>Skipped modules</h2>
-<p>None — 今日 5 个模块全部产出。</p>
+<p>None — 今日 9 个模块全部产出。</p>
 `,
       },
     };
 
-    const orderedKeys = ["intake", "gameteam", "botrules", "accounts", "numbers", "wrap"];
+    const orderedKeys = ["intake", "gameteam", "botrules", "accounts", "numbers", "incident", "refund", "release", "escalation", "wrap"];
 
     const switcher = document.getElementById("switcher");
     const moduleEl = document.getElementById("module");

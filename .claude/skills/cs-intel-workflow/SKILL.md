@@ -40,12 +40,16 @@ Trigger on any of:
 - "Update bot rules based on ..."
 - "Audit / log iOS / Google account state"
 - "Run numerical test on ..."
+- "P0 / P1 incident: ..." / "事故" / "故障"
+- "Refund request: ..." / "退款" / "玩家想退款"
+- "Release plan for ..." / "发版前检查" / "1.4.3 上线 checklist"
+- "Triage this ticket" / "玩家投诉" / "升级判断"
 - "Daily wrap" / "CS wrap"
 
 Do NOT trigger for:
 - Generic Claude Code coding requests with no CS / game-ops framing
 - Pure translation requests
-- Anything outside the five named modules
+- Anything outside the named modules
 
 ## Module map
 
@@ -56,6 +60,10 @@ Do NOT trigger for:
 | 3 | `botrules` | Suggest bot rule updates | `03_botrules_<slug>.md` |
 | 4 | `accounts` | Log / audit store account state | `04_accounts_<platform>.md` |
 | 5 | `numbers` | Numerical test report | `05_numbers_<slug>.md` |
+| 6 | `incident` | P0/P1 事故处理 checklist + 沟通矩阵 + 复盘问题 | `06_incident_<slug>.md` |
+| 7 | `refund` | 单笔退款 / 补偿 决策树 + 回复模板 | `07_refund_<slug>.md` |
+| 8 | `release` | 发版前后 checklist + 监控阈值 + 回滚触发 | `08_release_<slug>.md` |
+| 9 | `escalation` | 玩家投诉 triage：是否人工、优先级、路由到哪个模块 | `09_escalation_<slug>.md` |
 
 Each module has its own prompt file under `/prompts/<module>.md`. The
 orchestrator picks the module by intent, never by guessing.
@@ -80,6 +88,10 @@ For the chosen module, verify required inputs are present:
 | botrules | current rule set + trigger content | ask for missing piece |
 | accounts | platform (iOS / Google) + state dump | ask which platform |
 | numbers | baseline values + change spec + test scope | ask for missing piece |
+| incident | incident_text + detected_at | ask for missing piece |
+| refund | request_text + purchase_info + platform | ask — never decide without purchase record |
+| release | release_spec + release_window + platform | ask for missing piece |
+| escalation | complaint_text | proceed with conservative defaults if meta absent |
 
 Do not invent missing input. Do not run with "assume defaults".
 
@@ -115,7 +127,7 @@ A single-module run stops when:
 - INDEX.md updated
 - Self-check passed OR clearly marked as failed
 
-A "wrap" run stops when all five modules have either produced an
+A "wrap" run stops when all nine modules have either produced an
 artifact or written `SKIPPED — no input provided` to a stub file.
 
 Never loop. Never run more than one retry per module.

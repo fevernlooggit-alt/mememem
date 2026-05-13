@@ -4,6 +4,10 @@ export type ModuleId =
   | "botrules"
   | "accounts"
   | "numbers"
+  | "incident"
+  | "refund"
+  | "release"
+  | "escalation"
   | "wrap";
 
 export const MODULES: Record<
@@ -39,6 +43,30 @@ export const MODULES: Record<
     description: "对数值改动给出 Ship / Hold / Revise 建议",
     inputHint: "提供 baseline（当前值）、change_spec（改动）、scope（范围）。可选 target_metric 和 constraints。",
     references: ["numbers_test_checklist"],
+  },
+  incident: {
+    label: "P0/P1 事故处理 (incident)",
+    description: "事故发生时的 25-30 项 checklist：诊断 → 缓解 → 通知 → 复盘",
+    inputHint: "粘贴现象描述。注明 detected_at 时间。可选 current_status / affected_segment。",
+    references: [],
+  },
+  refund: {
+    label: "退款 / 补偿决策树 (refund)",
+    description: "单笔退款请求逐条检查 → Approve / Partial / Compensation / Deny",
+    inputHint: "粘贴玩家原文 + purchase_info (SKU/金额/时间) + platform。可选 usage_status / bug_context / player_history。缺购买信息不会处理。",
+    references: [],
+  },
+  release: {
+    label: "发版前后 Checklist (release)",
+    description: "T-24h / T-1h / T+1h/4h/24h 检查与监控阈值 + 回滚触发条件",
+    inputHint: "粘贴版本号和主要改动 + release_window + platform。可选 baseline_metrics / gradual_rollout。",
+    references: [],
+  },
+  escalation: {
+    label: "玩家投诉升级诊断 (escalation)",
+    description: "工单 30 秒 triage：分类 / 优先级 / 是否人工 / 路由到哪个模块 / 回复草稿",
+    inputHint: "粘贴玩家工单原文。可选 player_meta / related_tickets / channel。",
+    references: [],
   },
   wrap: {
     label: "每日汇总 (wrap)",
@@ -566,12 +594,410 @@ const REF_NUMBERS_CHECKLIST = `# Numbers Test Checklist
 Never write "high confidence" on downstream-effects unless the relationship is pure math.
 `;
 
+const PROMPT_INCIDENT = `# Module 7 — P0/P1 Incident Handling Checklist
+
+## Job
+Take a live incident description and produce a structured checklist that walks the operator through diagnosis → containment → communication → recovery → post-mortem.
+
+## Required input
+- incident_text: what is happening
+- detected_at: when first observed
+- Optional: current_status, affected_segment
+
+## Steps
+1. Restate the incident in one sentence.
+2. Classify severity using hard anchors (P0/P1/P2) — same as intake.
+3. Build the 5W check — each W has an answer or "unknown — needs investigation".
+4. Build the immediate-action checklist (next 15 min). Order matters.
+5. Build the communication matrix (audience / channel / message / when / status).
+6. Build the mitigation decision tree (rollback / flag / hotfix / wait) with trigger conditions and risks.
+7. Estimate player impact bracket (×10 / ×100 / ×1000 / ×10k+ / unknown).
+8. Compensation evaluation (trigger met if: player can't play >1h, paid feature broken, data lost).
+9. Post-mortem question list (5 Whys + prevention).
+10. Open questions / unknowns.
+
+## Output template
+\`\`\`
+# Incident — <one-line title>
+
+**Slug:** <kebab>
+**Detected at:** <YYYY-MM-DD HH:MM>
+**Severity:** <P0|P1|P2>
+**Status:** <still firing|partially mitigated|resolved|unknown>
+**Affected segment:** <or "unknown">
+
+## One-line summary
+<the incident in one sentence>
+
+## 5W check
+- **What:** <symptom> | unknown
+- **When:** <since when, frequency> | unknown
+- **Where:** <surface, region, platform> | unknown
+- **Who:** <which players, how many> | unknown
+- **Why:** <suspected cause> | unknown
+
+## Immediate actions (next 15 min)
+- [ ] <action 1 — stop the bleeding>
+- [ ] <preserve evidence: logs, crash reports>
+- [ ] <decide: rollback / flag / hotfix / wait>
+
+## Within 1 hour
+- [ ] ...
+
+## Within 4 hours
+- [ ] ...
+
+## Communication matrix
+| Audience | Channel | Message gist | When | Status |
+|----------|---------|--------------|------|--------|
+
+## Mitigation options
+| Option | Trigger to choose | Risk | Time-to-effect |
+
+**Recommended path:** <one + justification>
+
+## Player impact estimate
+- **Bracket:** <×10/×100/×1000/×10k+/unknown>
+- **Evidence:** <ticket count, logs, or "not measured">
+- **Revenue impact:** <or "not stated">
+
+## Compensation evaluation
+- **Trigger met?** <yes/no — reason>
+- **If yes:** <draft package — needs operator approval>
+
+## Post-mortem questions (capture for later)
+1. Proximate cause?
+2. Why didn't we catch it pre-production?
+3. Why didn't monitoring alert sooner?
+4. Systemic fix vs point fix?
+5. Prevention?
+
+## Open questions / unknowns
+- ...
+
+## Evidence to preserve
+- [ ] Crash logs (last 4h)
+- [ ] Server error logs (window)
+- [ ] Affected player IDs (sample of 10+)
+- [ ] Screenshots from one affected client
+- [ ] Telemetry snapshot
+\`\`\`
+
+## Rules
+- Severity by hard anchor only. "Urgent" alone is not P0.
+- Every checklist item is an action, not a question. Questions go under Open questions.
+- Communication matrix must include "affected players" — even if channel is "n/a" and message is "deferred".
+- 5W check must not silently skip a row.
+- Mitigation table always includes "Wait + monitor" as an option, even when clearly wrong.
+- Never recommend external comms for P2. Internal only.
+- Never invent player counts, revenue, or root cause.
+- Artifact is designed to be opened on a phone at 2am. Lead with next-15-min actions.
+`;
+
+const PROMPT_REFUND = `# Module 8 — Refund / Compensation Decision Tree
+
+## Job
+Walk a single refund / compensation request through a deterministic decision tree → Approve / Partial / Compensation-only / Deny + a copy-pasteable player reply.
+
+## Required input
+- request_text: the player's message
+- purchase_info: SKU / amount / currency / time / order ID
+- platform: ios | google-play | web | other
+- Optional: usage_status, bug_context, player_history
+
+If purchase_info or platform missing, do NOT proceed. Ask.
+
+## Steps
+1. Restate the ask (full refund, partial, in-game compensation, all three).
+2. Platform-policy window check:
+   - iOS: Apple owns refund flow. CS can only issue in-game compensation or guide to reportaproblem.apple.com. Window: 90 days.
+   - Google Play: 48h self-service window; beyond, developer discretion up to 180 days.
+   - Web: per PSP.
+   Mark: within / outside / unknown.
+3. Usage-status check (not-used / partial / full / unknown).
+4. Bug-attribution check (game-bug / user-error / misleading / unauthorized / none).
+5. History check (first-time / 2-3 / 4+ / unknown).
+6. Synthesize decision.
+7. Draft player reply in player's language. Tone: warm, specific, no hedging. Never promise something CS can't deliver.
+8. Internal notes / actions.
+
+## Output template
+\`\`\`
+# Refund Decision — <player ID or "Anonymous"> — <SKU>
+
+**Slug:** <kebab>
+**Platform:** <ios|google-play|web|other>
+**Order ref:** <id or "not provided">
+**Amount:** <X.XX CCY>
+**Purchased:** <YYYY-MM-DD>
+**Decision:** <APPROVE FULL | APPROVE PARTIAL | COMPENSATION ONLY | DENY>
+
+## Player request (restated)
+<one sentence>
+
+## Decision tree trace
+| Check | Result | Rule |
+|-------|--------|------|
+| Platform-policy window | <within/outside/unknown> | <e.g. "iOS 90d, day 14"> |
+| Usage status | <not-used/partial/full> | <evidence> |
+| Bug attribution | <game-bug/user-error/...> | <reason> |
+| History | <first-time/2-3/4+> | <if unknown, ask> |
+| Final branch | <branch> | <which combo led here> |
+
+## Player reply draft
+> <copy-pasteable text in the player's language>
+
+## Internal actions
+- [ ] log decision in CRM with tag <tag>
+- [ ] send <N> gems via in-game-mail template <T-COMP-XX>
+- [ ] if iOS, include reportaproblem.apple.com link in reply
+- [ ] if applicable: create separate intake for upstream bug
+
+## Platform-specific notes
+- iOS: CS cannot refund directly. Reply includes reportaproblem.apple.com if approved.
+- Google Play: under 48h → Play self-service. Beyond → Play Console Order management.
+- Web: refund via PSP dashboard.
+
+## Risk flags
+- [ ] Possible abuse pattern (history >= 2)
+- [ ] Possible chargeback risk
+- [ ] Possible data-error (purchase didn't reach account)
+- [ ] None
+
+## Open questions for the operator
+- ...
+\`\`\`
+
+## Rules
+- NEVER approve a full refund on iOS in the player reply. CS does not control Apple's refund flow. Reply may *recommend* reportaproblem.apple.com and may *issue in-game compensation* in parallel.
+- Never deny solely because "player used the item" if a confirmed game bug affected the purchase. Bug attribution overrides usage status.
+- Player reply must be in player's input language.
+- Reply must NEVER include internal decision tree, internal rule names, or CRM tags. Those go in Internal actions only.
+- If bug_attribution = unauthorized purchase → ALWAYS escalate + KYC, never one-shot Approve or Deny.
+- If history = 4+ prior refunds → Deny + flag for human review regardless of other inputs.
+- Never invent order ID, player ID, or amount. If unstated, write "not provided" + add to Open questions.
+`;
+
+const PROMPT_RELEASE = `# Module 9 — Pre/Post Release Checklist
+
+## Job
+Produce a release-readiness and post-release-monitoring checklist for a single release. Phone-friendly punch list with metric thresholds, alert conditions, and named rollback triggers.
+
+## Required input
+- release_spec: version + 5-line summary
+- release_window: planned go-live time (ISO + TZ)
+- platform: ios | android | both | web
+- Optional: baseline_metrics, gradual_rollout
+
+## Steps
+1. Restate the scope. Mark risky items (login / payment / save-game / account binding / large balance) with 🚩.
+2. T-24h checklist (store-platform-specific).
+3. T-4h checklist (monitoring readiness, comms pre-staged).
+4. T-1h go/no-go.
+5. T+0 to T+1h monitoring (4-6 metrics + threshold + cadence).
+6. T+1h to T+4h monitoring.
+7. T+24h checklist (rollout decision, retrospective).
+8. Rollback triggers (3-5 specific inequalities).
+9. Comm templates to pre-stage.
+10. Top 3 risks with mitigations.
+
+## Output template
+\`\`\`
+# Release Plan — <version> — <YYYY-MM-DD HH:MM TZ>
+
+**Slug:** <kebab>
+**Version:** <e.g. 1.4.3>
+**Platform:** <ios|android|both|web>
+**Go-live window:** <YYYY-MM-DD HH:MM TZ>
+**Gradual rollout:** <%/staged/100%/n/a>
+
+## Scope (risky items flagged 🚩)
+- ...
+
+## T-24h checklist
+- [ ] Build signed and verified
+- [ ] <store-specific>
+- [ ] Crash reporter config matches production
+- [ ] Server feature flags pre-set
+- [ ] Migrations tested on prod-like data
+- [ ] CS FAQ updated (bot rules from botrules deployed)
+- [ ] On-call confirmed (primary + backup)
+- [ ] Rollback procedure documented & accessible from phone
+- [ ] Hotfix branch ready
+- [ ] Release notes finalized in all locales
+
+## T-4h checklist
+- [ ] Dashboards open
+- [ ] Slack/Discord channels active
+- [ ] Comm templates pre-drafted
+- [ ] Rollback rehearsed in last 30 days
+- [ ] No conflicting events within ±2h
+
+## T-1h go/no-go
+- [ ] Baseline snapshot recorded
+- [ ] No active P0/P1 incidents
+- [ ] Eng on-call ready
+- [ ] CS on-call ready
+- [ ] Operator confirms ready (human gate)
+
+### Baseline snapshot (last 7d avg)
+| Metric | Value | Source |
+| Crash rate | ... | ... |
+| Login success | ... | ... |
+| IAP success | ... | ... |
+| Ticket volume/h | ... | ... |
+
+## T+0 → T+1h monitoring
+Cadence: every 10 min.
+
+| Metric | Warn | Alert | Status |
+| Crash rate | >baseline + 0.3pp | >baseline + 1pp | pending |
+| Login success | <baseline - 1pp | <baseline - 3pp | pending |
+| IAP success | <baseline - 2pp | <baseline - 5pp | pending |
+| Ticket volume/h | >baseline × 1.5 | >baseline × 3 | pending |
+| 🚩 item metric | <per item> | <per item> | pending |
+
+## T+1h → T+4h monitoring
+| Same as above plus session length |
+
+## T+24h checklist
+- [ ] Metrics back to baseline ±1pp
+- [ ] No refund/chargeback spike
+- [ ] Decide: extend rollout / hold / rollback
+- [ ] Schedule retrospective for T+72h
+
+## Rollback triggers (hard rules)
+Rollback if ANY:
+- [ ] Crash rate > baseline + 1pp for >15min
+- [ ] Login success < baseline - 3pp for >10min
+- [ ] IAP success < baseline - 5pp for >10min
+- [ ] Ticket volume > baseline × 3 for >30min
+- [ ] Any confirmed data-loss report (1 = rollback)
+- [ ] 🚩 item-specific trigger
+
+**Rollback procedure:** <one-line where to find it>
+
+## Pre-staged comm templates
+- Maintenance notice: <1 line>
+- Apology + ETA: <2 lines>
+- Rollback notice: <2 lines>
+- All-clear: <1 line>
+
+## Top 3 risks
+1. <risk> — likelihood — mitigation
+2. ...
+3. ...
+
+## Open questions
+- ...
+\`\`\`
+
+## Rules
+- Every threshold is a number or number ± delta. "Monitor closely" is not acceptable. Missing baseline → write "baseline-not-provided — set before go-live" + add to Open questions.
+- Every rollback trigger is an inequality, not a vibe.
+- T-1h "Operator confirms ready" is the last checkbox = human gate. No release without it.
+- 🚩 risky items must have at least one paired metric in monitoring. If not, that item gets an Open question.
+- Never recommend skipping T-24h items. If release is in 2h, T-24h items show status "OVERDUE — confirm or accept risk in writing".
+- For platform=web: store-specific items become CDN/DNS items.
+- For gradual_rollout: thresholds apply at current rollout share, not eventual 100%.
+`;
+
+const PROMPT_ESCALATION = `# Module 10 — Player Complaint Triage
+
+## Job
+Front-door triage for a single player complaint. Decide: does it need a human now, what priority, which downstream module picks up, what's the first reply. Designed to be read in 30 seconds.
+
+## Required input
+- complaint_text: verbatim message
+- Optional: player_meta, related_tickets, channel
+
+## Steps
+1. Restate in one sentence.
+2. Classify content type (pick dominant + secondary):
+   - bug-report / refund-request / account-issue / payment-issue / harassment / data-loss / feature-feedback / billing-dispute / press-legal / general-question
+3. Emotion / risk read: calm / frustrated / panic / hostile / public-exposure-risk / legal-language / vulnerable-user
+4. Urgency (hard anchors):
+   - P0: data loss in progress / payment failing now / safety threat / legal notice / press
+   - P1: account locked / paid feature broken for this user
+   - P2: bug report / refund / general complaint
+   - P3: feature feedback / general question
+5. Human-needed gate (YES if any of): P0, hostile, legal-language, public-exposure-risk, vulnerable-user, data-loss with no obvious cause, payment dispute / chargeback signal, press / regulatory
+6. Downstream module routing (intake / refund / incident / botrules / accounts / none)
+7. Dedupe / cluster check: if related_tickets >= 5 → recommend running incident module
+8. First reply draft in player's language. Tone: acknowledge specific problem, state concrete next step, never promise refund/compensation/fix-ETA without operator approval.
+9. Escalation triggers (when to re-route if situation changes).
+
+## Output template
+\`\`\`
+# Escalation Triage — <one-line summary>
+
+**Slug:** <kebab>
+**Channel:** <in-app|email|Discord|review|social|other>
+**Received:** <YYYY-MM-DD HH:MM>
+**Content type:** <primary> + <secondary>
+**Urgency:** <P0|P1|P2|P3>
+**Human needed now?** <YES — reason | NO — bot can handle | DEFER — wait for info>
+
+## One-line summary
+<one short sentence>
+
+## Emotion / risk read
+- <calm|frustrated|panic|hostile>
+- <flags: public-exposure-risk, legal-language, vulnerable-user, none>
+
+## Routing
+- **Primary module:** <intake|refund|incident|botrules|accounts|none>
+- **Why:** <one sentence>
+- **If cluster (related_tickets >= 5):** run \`incident\` module instead
+
+## First reply draft (player's language)
+> <copy-pasteable text, specific, no over-promises>
+
+## Internal handling
+- [ ] log with tag <tag>
+- [ ] assign to <module> queue
+- [ ] if cluster: notify ops
+- [ ] if escalation triggered: <thing>
+
+## Escalation triggers (auto-promote if any of these happen)
+- [ ] Player posts publicly
+- [ ] Related tickets cross <threshold> in 1h
+- [ ] Player mentions chargeback / dispute / legal
+- [ ] Evidence of data loss provided
+- [ ] No reply within <X> hours
+
+## Risk flags
+- [ ] Possible coordinated complaint
+- [ ] Possible fraud / abuse signal
+- [ ] Possible PR risk
+- [ ] None
+
+## Open questions for the operator
+- ...
+\`\`\`
+
+## Rules
+- First reply NEVER promises a refund, gem package, or fix ETA on its own authority.
+- Human-needed gate is sticky: once any "yes" trigger fires, the ticket is human-needed for life.
+- Emotion read affects urgency: P2 + hostile + public-exposure-risk → upgrade to P1.
+- Press / regulatory / legal-language is ALWAYS P0, regardless of content's apparent triviality.
+- Cluster detection: related_tickets >= 5 → recommend running incident module before responding individually.
+- Vulnerable-user signal (minor mentioned, self-harm, mental-health) → human-needed = YES + flag for safety handover.
+- Player reply in player's language, mirroring formality.
+- Never include internal tags, slugs, or module names in the player reply.
+- Purpose is route fast + reply once well. Resolution belongs in the routed module.
+`;
+
 const MODULE_PROMPTS: Record<ModuleId, string> = {
   intake: PROMPT_INTAKE,
   gameteam: PROMPT_GAMETEAM,
   botrules: PROMPT_BOTRULES,
   accounts: PROMPT_ACCOUNTS,
   numbers: PROMPT_NUMBERS,
+  incident: PROMPT_INCIDENT,
+  refund: PROMPT_REFUND,
+  release: PROMPT_RELEASE,
+  escalation: PROMPT_ESCALATION,
   wrap: PROMPT_WRAP,
 };
 
